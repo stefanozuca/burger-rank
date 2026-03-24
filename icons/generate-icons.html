@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<!--
+  BurgerRank — Generador de Iconos PWA
+  Abrí este archivo en un browser, hacé click en cada botón y guardá las imágenes
+  como icons/icon-192.png e icons/icon-512.png
+-->
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Generar Iconos PWA — BurgerRank</title>
+  <style>
+    body { font-family: sans-serif; background: #1a1a1a; color: #fff; padding: 40px; text-align: center; }
+    h1 { color: #e85d04; margin-bottom: 8px; }
+    p  { color: #9ca3af; margin-bottom: 32px; }
+    canvas { border-radius: 24px; display: block; margin: 0 auto 16px; }
+    button {
+      background: #e85d04; color: white; border: none; padding: 12px 24px;
+      border-radius: 8px; font-size: 1rem; cursor: pointer; margin: 8px;
+    }
+    button:hover { background: #c94e03; }
+    .section { margin-bottom: 48px; }
+    .label { color: #9ca3af; font-size: 0.875rem; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🍔 Generador de Iconos — BurgerRank</h1>
+  <p>Hacé click en cada botón para descargar el ícono correspondiente.</p>
+
+  <div class="section">
+    <div class="label">192 × 192 px</div>
+    <canvas id="canvas-192" width="192" height="192"></canvas>
+    <button onclick="download('canvas-192', 'icon-192.png')">⬇ Descargar icon-192.png</button>
+  </div>
+
+  <div class="section">
+    <div class="label">512 × 512 px</div>
+    <canvas id="canvas-512" width="512" height="512"></canvas>
+    <button onclick="download('canvas-512', 'icon-512.png')">⬇ Descargar icon-512.png</button>
+  </div>
+
+  <p style="font-size:0.75rem; color:#555; margin-top:32px">
+    Guardá los archivos en la carpeta <code>icons/</code> del proyecto.
+  </p>
+
+  <script>
+    function drawIcon(canvasId, size) {
+      const canvas = document.getElementById(canvasId);
+      const ctx = canvas.getContext('2d');
+      const s = size;
+      const r = s * 0.18; // radio del borde redondeado
+
+      // Fondo
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.roundRect(0, 0, s, s, r);
+      ctx.fill();
+
+      // Círculo naranja
+      ctx.fillStyle = '#e85d04';
+      ctx.beginPath();
+      ctx.arc(s / 2, s / 2, s * 0.42, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Emoji 🍔
+      ctx.font = `${s * 0.5}px serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🍔', s / 2, s / 2 + s * 0.02);
+    }
+
+    function download(canvasId, filename) {
+      const canvas = document.getElementById(canvasId);
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    // Dibujar al cargar
+    drawIcon('canvas-192', 192);
+    drawIcon('canvas-512', 512);
+  </script>
+</body>
+</html>

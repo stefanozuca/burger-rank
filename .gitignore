@@ -1,0 +1,22 @@
+# Configuración con credenciales reales — NUNCA commitear
+config.js
+
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V7
+.Trashes
+
+# Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Node (si se usa en algún momento para tooling)
+node_modules/
+npm-debug.log*

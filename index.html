@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>BurgerRank</title>
+  <meta name="description" content="Rankeá hamburguesas con tus amigos">
+
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#E32636">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BurgerRank">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Open Graph (para compartir) -->
+  <meta property="og:title" content="BurgerRank 🍔">
+  <meta property="og:description" content="Rankeá hamburguesas con tus amigos">
+  <meta property="og:type" content="website">
+
+  <!-- Tailwind CSS CDN (JIT en browser) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary:    '#E32636',   /* Rojo Tomate  */
+            golden:     '#D2A679',   /* Marrón Dorado (Pan) */
+            queso:      '#FFD700',   /* Amarillo Queso */
+            lechuga:    '#567D46',   /* Verde Lechuga */
+            carne:      '#4B3621',   /* Carne / Marrón Oscuro */
+            surface:    '#261509',
+            background: '#130b04',
+          },
+        },
+      },
+    };
+  </script>
+
+  <!-- Estilos custom -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body class="h-full bg-[#130b04] text-white">
+
+  <!-- ══════════════════════════════════════════════════════════
+       PANTALLAS DE AUTH (solo una visible a la vez)
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Pantalla: Loading inicial -->
+  <div id="screen-loading" class="fixed inset-0 flex flex-col items-center justify-center bg-[#130b04] z-50">
+    <div class="text-6xl mb-4">🍔</div>
+    <h1 class="text-2xl font-bold text-white mb-2">BurgerRank</h1>
+    <div class="spinner mt-6"></div>
+  </div>
+
+  <!-- Pantalla: Login con Google -->
+  <div id="screen-login" class="hidden fixed inset-0 flex flex-col items-center justify-center
+                                 bg-[#130b04] px-6 z-50">
+    <div class="text-7xl mb-6">🍔</div>
+    <h1 class="text-3xl font-bold text-white mb-2">BurgerRank</h1>
+    <p class="text-gray-400 text-center mb-10">
+      Rankeá hamburgueserías<br>con tus amigos
+    </p>
+
+    <!-- Botón Google Sign-In (GSI lo renderiza aquí) -->
+    <div id="google-signin-btn"></div>
+
+    <p class="text-xs text-gray-600 mt-8 text-center max-w-xs">
+      Solo usuarios autorizados pueden acceder.<br>
+      Tu cuenta de Google es solo para identificarte.
+    </p>
+  </div>
+
+  <!-- Pantalla: Acceso restringido -->
+  <div id="screen-restricted" class="hidden fixed inset-0 flex flex-col items-center justify-center
+                                      bg-[#130b04] px-6 z-50 text-center">
+    <div class="text-6xl mb-4">🔒</div>
+    <h2 class="text-2xl font-bold mb-2">Acceso restringido</h2>
+    <p class="text-gray-400 mb-2">
+      Tu cuenta no está en la lista de usuarios autorizados.
+    </p>
+    <p class="text-sm text-gray-500 mb-8">
+      Email: <span id="restricted-email" class="text-gray-300"></span>
+    </p>
+    <p class="text-xs text-gray-600 mb-6">
+      Pedile al owner de BurgerRank que te agregue a la lista de usuarios.
+    </p>
+    <button onclick="App.signOut()"
+            class="btn-secondary text-sm">
+      Intentar con otra cuenta
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       APP SHELL (se muestra cuando el usuario está autenticado)
+  ═══════════════════════════════════════════════════════════ -->
+
+  <div id="screen-app" class="hidden h-full">
+
+    <!-- Header fijo -->
+    <header id="app-header"
+            class="fixed top-0 left-0 right-0 z-40 flex items-end
+                   bg-[#130b04] border-b border-[#5c3d25]">
+      <div class="flex items-center justify-between w-full px-4 pb-3"
+           style="max-width:480px; margin:0 auto">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🍔</span>
+          <span class="font-bold text-lg">BurgerRank</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <!-- Refresh button -->
+          <button onclick="App.refresh()" aria-label="Actualizar"
+                  class="btn-ghost p-2">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 class="w-5 h-5">
+              <path d="M1 4v6h6M23 20v-6h-6"/>
+              <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
+            </svg>
+          </button>
+          <!-- Avatar del usuario -->
+          <button onclick="App.navigate('#profile')" aria-label="Perfil"
+                  id="header-avatar"
+                  class="w-8 h-8 rounded-full bg-[#E32636] flex items-center justify-center
+                         text-sm font-bold overflow-hidden">
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Offline banner -->
+    <div id="offline-banner">
+      📡 Sin conexión — datos pueden no estar actualizados
+    </div>
+
+    <!-- Contenido principal (views) -->
+    <main id="main-content">
+
+      <!-- ── View: Home ─────────────────────────────── -->
+      <section id="view-home" class="hidden">
+        <!-- Renderizado por Home.render() -->
+      </section>
+
+      <!-- ── View: Importar Local ───────────────────── -->
+      <section id="view-add-local" class="hidden">
+        <!-- Renderizado por AddLocal.init() -->
+      </section>
+
+      <!-- ── View: Nueva Degustación ───────────────── -->
+      <section id="view-add-degustacion" class="hidden">
+        <!-- Renderizado por Degustacion.init() -->
+      </section>
+
+      <!-- ── View: Perfil ───────────────────────────── -->
+      <section id="view-profile" class="hidden">
+        <!-- Renderizado por Profile.render() -->
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav id="bottom-nav"
+         class="fixed bottom-0 left-0 right-0 z-40
+                bg-[#130b04] border-t border-[#5c3d25] flex items-stretch">
+      <div class="flex w-full" style="max-width:480px; margin:0 auto">
+
+        <!-- Home -->
+        <button class="nav-item active" data-route="#home"
+                onclick="App.navigate('#home')" aria-label="Ranking">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span>Ranking</span>
+        </button>
+
+        <!-- Agregar Degustación (botón central destacado) -->
+        <div class="flex-1 flex items-center justify-center pb-2">
+          <button onclick="App.navigate('#add-degustacion')"
+                  aria-label="Nueva degustación"
+                  class="w-14 h-14 rounded-full flex items-center justify-center text-2xl
+                         shadow-lg transition-transform active:scale-95"
+                  style="background:var(--color-primary)">
+            +
+          </button>
+        </div>
+
+        <!-- Importar Local -->
+        <button class="nav-item" data-route="#add-local"
+                onclick="App.navigate('#add-local')" aria-label="Locales">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+          </svg>
+          <span>Locales</span>
+        </button>
+
+      </div>
+    </nav>
+
+  </div><!-- /screen-app -->
+
+  <!-- Toast container (global) -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- ══════════════════════════════════════════════════════════
+       SCRIPTS
+       Orden importante: config → sheets → auth → módulos → app
+  ═══════════════════════════════════════════════════════════ -->
+
+  <!-- Configuración (excluido del repo, ver config.example.js) -->
+  <script src="config.js"></script>
+
+  <!-- Módulos de la app -->
+  <script src="js/sheets.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/maps.js"></script>
+  <script src="js/home.js"></script>
+  <script src="js/degustacion.js"></script>
+  <script src="js/app.js"></script>
+
+  <!--
+    Google Identity Services (GSI)
+    onload=onGoogleLibraryLoad → callback definido en app.js
+    Se carga al final para no bloquear el render inicial
+  -->
+  <script src="https://accounts.google.com/gsi/client"
+          async defer
+          onload="onGoogleLibraryLoad()"></script>
+
+</body>
+</html>

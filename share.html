@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>BurgerRank — Top 5</title>
+  <meta name="description" content="Mi ranking personal de hamburguesas">
+
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#E32636">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <!-- Open Graph (se actualiza dinámicamente via JS) -->
+  <meta property="og:title" content="BurgerRank 🍔">
+  <meta property="og:description" content="Mi ranking personal de hamburguesas">
+  <meta property="og:type" content="website">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        primary: '#E32636', golden: '#D2A679', queso: '#FFD700',
+        lechuga: '#567D46', carne: '#4B3621', surface: '#261509',
+      } } }
+    };
+  </script>
+
+  <!-- Estilos custom (necesitamos rank-badge, share-header, etc.) -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body class="min-h-full bg-[#130b04] text-white pb-safe">
+
+  <!-- Contenido de la vista compartida (renderizado por share.js) -->
+  <div id="share-container">
+    <!-- Loader inicial -->
+    <div class="flex flex-col items-center justify-center min-h-screen">
+      <div class="text-5xl mb-4">🍔</div>
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <!-- share.js no depende de config.js ni de auth.js
+       Los datos vienen en el hash de la URL → funciona sin red ni login -->
+  <script src="js/share.js"></script>
+
+</body>
+</html>
