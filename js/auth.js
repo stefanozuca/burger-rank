@@ -98,7 +98,12 @@ const Auth = (() => {
 
   /**
    * Callback del ID Token (después de Sign-In con Google).
-   * Solo extraemos identidad; luego pedimos el access token por separado.
+   * Solo extraemos identidad; luego mostramos un botón para que el usuario
+   * autorice el acceso a Sheets con un click directo.
+   *
+   * Por qué no llamamos _requestAccessToken() directamente acá:
+   * Este callback no es un gesto de usuario → el browser bloquea el popup OAuth.
+   * La solución es mostrar un botón intermedio que sí es un click directo.
    */
   async function _handleCredentialResponse(response) {
     const payload = _parseJwt(response.credential);
@@ -116,9 +121,43 @@ const Auth = (() => {
 
     _persistSession();
 
-    // Ahora pedimos el access token para Sheets API
-    // Si ya autorizó antes, no muestra popup → silencioso
-    _requestAccessToken();
+    // Mostrar botón de autorización para que el usuario lo clickee
+    // y el popup de OAuth sea disparado desde un gesto directo
+    _showAuthorizeButton();
+  }
+
+  /**
+   * Muestra un botón "Autorizar acceso" después del Sign-In.
+   * Necesario para que el popup OAuth de Sheets no sea bloqueado por el browser.
+   */
+  function _showAuthorizeButton() {
+    const container = document.getElementById('google-signin-btn');
+    if (!container) return;
+
+    container.innerHTML = `
+      <div class="flex flex-col items-center gap-3">
+        <p class="text-sm" style="color: var(--color-cheese);">
+          ¡Hola, ${_user.name.split(' ')[0]}! Un paso más 👇
+        </p>
+        <button
+          id="authorize-sheets-btn"
+          class="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white transition-opacity hover:opacity-90"
+          style="background-color: var(--color-tomato);"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+          </svg>
+          Autorizar acceso a mis datos
+        </button>
+        <p class="text-xs opacity-50">Necesario para leer y guardar tu ranking</p>
+      </div>
+    `;
+
+    // Este click SÍ es un gesto directo → el popup OAuth no será bloqueado
+    document.getElementById('authorize-sheets-btn').addEventListener('click', () => {
+      _requestAccessToken();
+    });
   }
 
   /**
@@ -183,9 +222,11 @@ const Auth = (() => {
       if (saved) {
         try {
           _user = JSON.parse(saved);
-          // Si hay sesión guardada, pedimos access token silenciosamente
+          // Sesión previa: el usuario ya autorizó → requestAccessToken con prompt:''
+          // no debería abrir popup. Si igual lo bloqueara, _handleTokenResponse
+          // caerá en error y el usuario verá el botón de login normalmente.
           _requestAccessToken();
-          return; // No mostrar botón de login todavía
+          return;
         } catch {
           _clearSession();
         }
