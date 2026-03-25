@@ -1,0 +1,66 @@
+name: Deploy BurgerRank to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch: # permite trigger manual desde la UI de GitHub
+
+# Permisos necesarios para desplegar en GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Evita deployments simultáneos; si hay uno en curso, el nuevo lo cancela
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Genera config.js a partir de los secrets de GitHub
+      # De esta forma nunca se sube config.js al repo pero sí está disponible en el deploy
+      - name: Generate config.js from secrets
+        run: |
+          cat > config.js << 'EOF'
+          const CONFIG = {
+            CLIENT_ID:      '${{ secrets.GOOGLE_CLIENT_ID }}',
+            API_KEY:        '${{ secrets.GOOGLE_API_KEY }}',
+            SPREADSHEET_ID: '${{ secrets.GOOGLE_SPREADSHEET_ID }}',
+            SCOPES: [
+              'https://www.googleapis.com/auth/spreadsheets',
+              'https://www.googleapis.com/auth/drive.readonly',
+            ].join(' '),
+            SHEETS: {
+              USERS:         'users',
+              LOCALES:       'locales',
+              HAMBURGUESAS:  'hamburguesas',
+              DEGUSTACIONES: 'degustaciones',
+              TOP_ORDER:     'top_order',
+              SHARES:        'shares',
+            },
+          };
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      # Sube todo el directorio raíz como artefacto de Pages
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
