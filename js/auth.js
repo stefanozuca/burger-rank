@@ -1,70 +1,52 @@
 /**
  * BurgerRank — Módulo de Autenticación
  *
- * Flujo:
- * 1. Google Identity Services (GSI) → ID Token (identidad del usuario)
- * 2. OAuth 2.0 Token Client → Access Token (para Sheets API)
- * 3. Verificación whitelist contra hoja `users` del spreadsheet
+ * Flujo simplificado (un solo popup, nunca bloqueado por el browser):
  *
- * Por qué dos pasos:
- * - El ID Token solo nos dice "quién es" el usuario (email, nombre, foto)
- * - El Access Token nos permite actuar en su nombre (leer/escribir Sheets)
- * La librería GSI de Google separa ambos conceptos deliberadamente.
+ *   [Botón HTML] → onclick → Auth.startLogin()
+ *                         → requestAccessToken({ prompt:'select_account' })
+ *                         → [popup OAuth de Google — permitido porque viene de click directo]
+ *                         → _handleTokenResponse()
+ *                         → fetch userinfo API → obtener email/nombre/foto
+ *                         → onLoginSuccess()
+ *
+ * Por qué el flujo anterior (GSI button → callback → botón intermedio) era problemático:
+ * - El primer paso (GSI button) disparaba _handleCredentialResponse desde un callback,
+ *   no desde un gesto de usuario. Cuando ese callback intentaba abrir el popup OAuth,
+ *   Chrome lo bloqueaba por política de seguridad.
+ * - La solución es usar únicamente el OAuth Token Client y dispararlo directamente
+ *   desde el onclick del botón en el HTML. Así el popup tiene "user gesture" y no se bloquea.
  */
 
 const Auth = (() => {
   // ── Estado interno ────────────────────────────────────────────────────────
-  let _user = null;          // { email, name, picture }
-  let _accessToken = null;   // OAuth access token para Sheets API
-  let _tokenExpiry = 0;      // timestamp en ms cuando expira el token
-  let _tokenClient = null;   // google.accounts.oauth2 token client
+  let _user        = null;  // { email, name, picture, hash }
+  let _accessToken = null;  // OAuth 2.0 access token
+  let _tokenExpiry = 0;     // timestamp (ms) de expiración
+  let _tokenClient = null;  // google.accounts.oauth2.TokenClient
 
-  // Callbacks de ciclo de vida (asignados desde app.js)
   const _callbacks = {
     onLoginSuccess: null,
-    onLoginRestricted: null,
-    onLogout: null,
-    onTokenRefreshed: null,
+    onLogout:       null,
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   /**
-   * Decodifica el payload de un JWT sin verificar la firma
-   * (la verificación la hace Google server-side; nosotros solo leemos el claim)
-   */
-  function _parseJwt(token) {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const json = decodeURIComponent(
-        atob(base64)
-          .split('')
-          .map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0'))
-          .join('')
-      );
-      return JSON.parse(json);
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Hash SHA-256 del email (para URLs de share sin exponer el email real).
-   * Retorna los primeros 16 chars en hex.
+   * Hash SHA-256 del email, recortado a 16 chars hex.
+   * Usado como clave en localStorage sin exponer el email real.
    */
   async function _hashEmail(email) {
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email.toLowerCase()));
+    const buf = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(email.toLowerCase()),
+    );
     return Array.from(new Uint8Array(buf))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('')
       .slice(0, 16);
   }
 
-  /**
-   * Guarda el usuario y el token en sessionStorage para restaurar sesión sin re-login.
-   * El token dura máx. 1 hora; al cerrar la pestaña se limpia solo (sessionStorage).
-   */
   function _persistSession() {
     sessionStorage.setItem('burgerrank_user', JSON.stringify(_user));
   }
@@ -79,119 +61,70 @@ const Auth = (() => {
   function _clearSession() {
     sessionStorage.removeItem('burgerrank_user');
     sessionStorage.removeItem('burgerrank_token');
-    _user = null;
+    _user        = null;
     _accessToken = null;
     _tokenExpiry = 0;
   }
 
-  // ── Inicialización GSI ────────────────────────────────────────────────────
-
-  function _initGSI() {
-    google.accounts.id.initialize({
-      client_id: CONFIG.CLIENT_ID,
-      callback: _handleCredentialResponse,
-      auto_select: true,           // intenta auto-login si hay sesión previa
-      cancel_on_tap_outside: false,
-    });
-  }
+  // ── Inicialización OAuth ──────────────────────────────────────────────────
 
   function _initTokenClient() {
     _tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: CONFIG.CLIENT_ID,
-      scope: CONFIG.SCOPES,
-      callback: _handleTokenResponse,
-      // prompt vacío → no muestra dialog de consentimiento si ya fue aceptado
+      scope:     CONFIG.SCOPES,
+      callback:  _handleTokenResponse,
+      // prompt vacío → no re-pide consentimiento si ya fue otorgado.
+      // startLogin() lo sobreescribe con 'select_account' para el primer login.
       prompt: '',
     });
   }
 
   /**
-   * Callback del ID Token (después de Sign-In con Google).
-   * Solo extraemos identidad; luego mostramos un botón para que el usuario
-   * autorice el acceso a Sheets con un click directo.
-   *
-   * Por qué no llamamos _requestAccessToken() directamente acá:
-   * Este callback no es un gesto de usuario → el browser bloquea el popup OAuth.
-   * La solución es mostrar un botón intermedio que sí es un click directo.
+   * Llama a la Google userinfo API para obtener email, nombre y foto.
+   * Más simple que decodificar un JWT: el access token es suficiente.
    */
-  async function _handleCredentialResponse(response) {
-    const payload = _parseJwt(response.credential);
-    if (!payload) {
-      App.showToast('Error al leer el token de Google', 'error');
-      return;
-    }
-
-    _user = {
-      email:   payload.email,
-      name:    payload.name,
-      picture: payload.picture,
-      hash:    await _hashEmail(payload.email),
-    };
-
-    _persistSession();
-
-    // Mostrar botón de autorización para que el usuario lo clickee
-    // y el popup de OAuth sea disparado desde un gesto directo
-    _showAuthorizeButton();
-  }
-
-  /**
-   * Muestra un botón "Autorizar acceso" después del Sign-In.
-   * Necesario para que el popup OAuth de Sheets no sea bloqueado por el browser.
-   */
-  function _showAuthorizeButton() {
-    const container = document.getElementById('google-signin-btn');
-    if (!container) return;
-
-    container.innerHTML = `
-      <div class="flex flex-col items-center gap-3">
-        <p class="text-sm" style="color: var(--color-cheese);">
-          ¡Hola, ${_user.name.split(' ')[0]}! Un paso más 👇
-        </p>
-        <button
-          id="authorize-sheets-btn"
-          class="flex items-center gap-2 px-6 py-3 rounded-full font-semibold text-white transition-opacity hover:opacity-90"
-          style="background-color: var(--color-tomato);"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-          </svg>
-          Autorizar acceso a mis datos
-        </button>
-        <p class="text-xs opacity-50">Necesario para leer y guardar tu ranking</p>
-      </div>
-    `;
-
-    // Este click SÍ es un gesto directo → el popup OAuth no será bloqueado
-    document.getElementById('authorize-sheets-btn').addEventListener('click', () => {
-      _requestAccessToken();
+  async function _fetchUserInfo(accessToken) {
+    const resp = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
+    if (!resp.ok) throw new Error('No se pudo obtener el perfil del usuario');
+    return resp.json();
   }
 
-  /**
-   * Callback del OAuth Access Token.
-   */
+  // ── Callbacks OAuth ───────────────────────────────────────────────────────
+
   async function _handleTokenResponse(tokenResponse) {
     if (tokenResponse.error) {
-      console.error('OAuth error:', tokenResponse.error);
+      console.error('OAuth error:', tokenResponse.error, tokenResponse.error_description);
       App.showToast('Error de autorización: ' + tokenResponse.error, 'error');
       return;
     }
 
     _accessToken = tokenResponse.access_token;
-    // Los tokens de Google duran 3600 seg; guardamos con margen de 5 min
+    // Tokens de Google duran 3600 seg; guardamos con margen de 5 min
     _tokenExpiry = Date.now() + (tokenResponse.expires_in - 300) * 1000;
-
-    // Cachear token para evitar el popup en cada F5 dentro de la misma sesión
     _persistToken();
 
-    _callbacks.onLoginSuccess?.(_user);
-  }
+    // Si ya tenemos el usuario (sesión restaurada con token expirado), ir directo
+    if (_user) {
+      _callbacks.onLoginSuccess?.(_user);
+      return;
+    }
 
-  function _requestAccessToken() {
-    if (_tokenClient) {
-      _tokenClient.requestAccessToken({ prompt: '' });
+    // Primera vez: obtener datos del usuario via userinfo API
+    try {
+      const info = await _fetchUserInfo(_accessToken);
+      _user = {
+        email:   info.email,
+        name:    info.name,
+        picture: info.picture,
+        hash:    await _hashEmail(info.email),
+      };
+      _persistSession();
+      _callbacks.onLoginSuccess?.(_user);
+    } catch (err) {
+      console.error('Error obteniendo perfil:', err);
+      App.showToast('Error al obtener tu perfil. Intentá de nuevo.', 'error');
     }
   }
 
@@ -199,12 +132,11 @@ const Auth = (() => {
 
   return {
     /**
-     * Inicializa los módulos de Google (llamar cuando la lib GSI esté cargada).
-     * @param {Object} callbacks - { onLoginSuccess, onLoginRestricted, onLogout }
+     * Inicializa el módulo OAuth. Llamar cuando la librería GSI esté cargada.
+     * @param {Object} callbacks - { onLoginSuccess, onLogout }
      */
     init(callbacks) {
       Object.assign(_callbacks, callbacks);
-      _initGSI();
       _initTokenClient();
 
       // Intentar restaurar sesión previa desde sessionStorage
@@ -213,12 +145,11 @@ const Auth = (() => {
         try {
           _user = JSON.parse(savedUser);
 
-          // Intentar reutilizar el token cacheado (evita round-trip a Google en cada F5)
+          // Reutilizar token cacheado si aún no expiró (evita round-trip en cada F5)
           const savedToken = sessionStorage.getItem('burgerrank_token');
           if (savedToken) {
             const { token, expiry } = JSON.parse(savedToken);
             if (token && expiry > Date.now()) {
-              // Token válido: usarlo directamente sin mostrar popup
               _accessToken = token;
               _tokenExpiry = expiry;
               _callbacks.onLoginSuccess?.(_user);
@@ -226,76 +157,66 @@ const Auth = (() => {
             }
           }
 
-          // Token expirado o no cacheado: pedir uno nuevo silenciosamente
-          // prompt:'' no abre popup si el usuario ya consintió antes
-          _requestAccessToken();
+          // Token expirado: pedir uno nuevo silenciosamente.
+          // prompt:'' no abre popup si el usuario ya consintió antes.
+          _tokenClient.requestAccessToken({ prompt: '' });
           return;
         } catch {
           _clearSession();
         }
       }
 
-      // Sin sesión → renderizar botón de Google Sign-In
-      google.accounts.id.renderButton(
-        document.getElementById('google-signin-btn'),
-        {
-          theme: 'filled_black',
-          size: 'large',
-          shape: 'pill',
-          text: 'signin_with',
-          locale: 'es',
-        }
-      );
-
-      // También intentar One Tap (solo en HTTPS)
-      if (location.protocol === 'https:') {
-        google.accounts.id.prompt();
-      }
+      // Sin sesión guardada → mostrar pantalla de login.
+      // El botón en index.html llamará a Auth.startLogin() cuando el usuario haga click.
     },
 
-    /** Retorna el user actual o null. */
-    getUser() { return _user; },
+    /**
+     * Inicia el flujo OAuth completo con selección de cuenta.
+     * IMPORTANTE: debe ser llamado desde un onclick directo (nunca desde un callback)
+     * para que el popup de Google no sea bloqueado por el browser.
+     */
+    startLogin() {
+      if (!_tokenClient) {
+        App.showToast('Cargando... intentá en un segundo', 'info');
+        return;
+      }
+      _tokenClient.requestAccessToken({ prompt: 'select_account' });
+    },
 
-    /** Retorna el access token vigente. */
+    getUser()        { return _user; },
     getAccessToken() { return _accessToken; },
-
-    /** Retorna true si el token no expiró. */
-    isTokenValid() { return _accessToken && Date.now() < _tokenExpiry; },
+    isTokenValid()   { return !!_accessToken && Date.now() < _tokenExpiry; },
 
     /**
-     * Refresca el access token silenciosamente.
-     * La llama SheetsDB cuando detecta 401.
+     * Refresca el access token silenciosamente (llamado por SheetsDB en 401).
+     * No abre popup ya que el usuario ya consintió.
      */
     refreshToken() {
       return new Promise((resolve) => {
-        const original = _handleTokenResponse;
-        // Interceptar la próxima respuesta de token para resolver la promesa
-        const oneShot = async (resp) => {
-          await original(resp);
-          resolve(_accessToken);
-        };
         if (_tokenClient) {
           _tokenClient.requestAccessToken({ prompt: '' });
         }
-        // Fallback: resolver con el token actual si el callback no se llama
+        // Fallback: si el callback no llega en 10s, resolver con el token actual
         setTimeout(() => resolve(_accessToken), 10000);
       });
     },
 
-    /** Cierra sesión. */
+    /** Cierra sesión y revoca el token de Google. */
     signOut() {
-      if (_user?.email) {
-        google.accounts.id.revoke(_user.email, () => {
-          console.log('Token revocado');
+      if (_accessToken) {
+        google.accounts.oauth2.revoke(_accessToken, () => {
+          console.log('Token de Google revocado');
         });
       }
       _clearSession();
       _callbacks.onLogout?.();
     },
 
-    /** Fuerza re-autenticación (cuando el token expira en uso). */
+    /** Fuerza re-autenticación (cuando el token expiró durante el uso). */
     forceReauth() {
-      _requestAccessToken();
+      if (_tokenClient) {
+        _tokenClient.requestAccessToken({ prompt: '' });
+      }
     },
   };
 })();

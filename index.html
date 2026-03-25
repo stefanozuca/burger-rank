@@ -56,43 +56,93 @@
     <div class="spinner mt-6"></div>
   </div>
 
-  <!-- Pantalla: Login con Google -->
+  <!-- Pantalla: Login -->
   <div id="screen-login" class="hidden fixed inset-0 flex flex-col items-center justify-center
-                                 bg-[#130b04] px-6 z-50">
-    <div class="text-7xl mb-6">🍔</div>
-    <h1 class="text-3xl font-bold text-white mb-2">BurgerRank</h1>
-    <p class="text-gray-400 text-center mb-10">
-      Rankeá hamburgueserías<br>con tus amigos
-    </p>
+                                 bg-[#130b04] px-5 z-50 overflow-y-auto py-8">
+    <div class="w-full max-w-sm">
 
-    <!-- Botón Google Sign-In (GSI lo renderiza aquí) -->
-    <div id="google-signin-btn"></div>
+      <!-- Logo + título -->
+      <div class="text-center mb-8">
+        <div class="text-7xl mb-3">🍔</div>
+        <h1 class="text-3xl font-bold tracking-tight">BurgerRank</h1>
+        <p class="text-sm text-gray-400 mt-1">Rankeá hamburgueserías con tus amigos</p>
+      </div>
 
-    <p class="text-xs text-gray-600 mt-8 text-center max-w-xs">
-      Solo usuarios autorizados pueden acceder.<br>
-      Tu cuenta de Google es solo para identificarte.
-    </p>
+      <!-- Card principal -->
+      <div class="rounded-2xl border border-[#5c3d25] bg-[#1a0c04] p-6 shadow-xl">
+
+        <!-- Tabs Iniciar sesión / Crear cuenta -->
+        <div class="toggle-group mb-6" role="tablist">
+          <button id="tab-signin" role="tab" aria-selected="true"
+                  class="toggle-btn flex-1 active"
+                  onclick="switchAuthTab('signin')">
+            Iniciar sesión
+          </button>
+          <button id="tab-signup" role="tab" aria-selected="false"
+                  class="toggle-btn flex-1"
+                  onclick="switchAuthTab('signup')">
+            Crear cuenta
+          </button>
+        </div>
+
+        <!-- Descripción según tab activo -->
+        <div id="auth-desc-signin" class="text-center mb-6">
+          <p class="text-sm text-gray-400">
+            Continuá con tu cuenta de Google para acceder a tu ranking personal.
+          </p>
+        </div>
+        <div id="auth-desc-signup" class="text-center mb-6 hidden">
+          <p class="text-sm text-gray-400">
+            Solo necesitás una cuenta de Google. Tu spreadsheet personal se crea automáticamente la primera vez.
+          </p>
+          <div class="mt-3 flex flex-col gap-1.5 text-left">
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <span class="text-[#567D46] font-bold">✓</span> Tus datos se guardan en tu propio Google Drive
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <span class="text-[#567D46] font-bold">✓</span> Nadie más puede ver ni editar tu ranking
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-500">
+              <span class="text-[#567D46] font-bold">✓</span> Podés compartir tu Top 5 cuando quieras
+            </div>
+          </div>
+        </div>
+
+        <!-- Botón de Google (onclick directo → popup no bloqueado por el browser) -->
+        <button onclick="Auth.startLogin()"
+                class="w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-xl
+                       bg-white text-gray-800 font-semibold text-sm
+                       hover:bg-gray-100 active:scale-[.98] transition-all shadow-sm">
+          <!-- Logo de Google en SVG -->
+          <svg class="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          Continuar con Google
+        </button>
+
+      </div>
+
+      <!-- Nota legal / privacidad -->
+      <p class="text-xs text-gray-600 mt-5 text-center leading-relaxed px-2">
+        Al continuar autorizás a BurgerRank a crear y leer un Google Spreadsheet
+        en tu Drive para guardar tu ranking personal.
+      </p>
+    </div>
   </div>
 
-  <!-- Pantalla: Acceso restringido -->
-  <div id="screen-restricted" class="hidden fixed inset-0 flex flex-col items-center justify-center
-                                      bg-[#130b04] px-6 z-50 text-center">
-    <div class="text-6xl mb-4">🔒</div>
-    <h2 class="text-2xl font-bold mb-2">Acceso restringido</h2>
-    <p class="text-gray-400 mb-2">
-      Tu cuenta no está en la lista de usuarios autorizados.
-    </p>
-    <p class="text-sm text-gray-500 mb-8">
-      Email: <span id="restricted-email" class="text-gray-300"></span>
-    </p>
-    <p class="text-xs text-gray-600 mb-6">
-      Pedile al owner de BurgerRank que te agregue a la lista de usuarios.
-    </p>
-    <button onclick="App.signOut()"
-            class="btn-secondary text-sm">
-      Intentar con otra cuenta
-    </button>
-  </div>
+  <!-- Helper: cambia el tab activo en la pantalla de login -->
+  <script>
+    function switchAuthTab(tab) {
+      const isSignin = tab === 'signin';
+      document.getElementById('tab-signin').classList.toggle('active', isSignin);
+      document.getElementById('tab-signup').classList.toggle('active', !isSignin);
+      document.getElementById('auth-desc-signin').classList.toggle('hidden', !isSignin);
+      document.getElementById('auth-desc-signup').classList.toggle('hidden', isSignin);
+    }
+  </script>
 
   <!-- ══════════════════════════════════════════════════════════
        APP SHELL (se muestra cuando el usuario está autenticado)
