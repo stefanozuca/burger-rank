@@ -28,20 +28,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Verifica que los secrets estén seteados (imprime longitud, nunca el valor)
+      # Verifica que los secrets requeridos estén seteados (imprime longitud, nunca el valor)
+      # SPREADSHEET_ID ya no es requerido: cada usuario crea su propio sheet al primer login
       - name: Verify secrets are set
         run: |
-          echo "GOOGLE_CLIENT_ID length: ${#GOOGLE_CLIENT_ID}"
-          echo "GOOGLE_API_KEY length: ${#GOOGLE_API_KEY}"
-          echo "GOOGLE_SPREADSHEET_ID length: ${#GOOGLE_SPREADSHEET_ID}"
-          if [ -z "$GOOGLE_SPREADSHEET_ID" ]; then
-            echo "❌ ERROR: GOOGLE_SPREADSHEET_ID está vacío"
+          echo "CLIENT_ID length: ${#CLIENT_ID}"
+          echo "API_KEY length: ${#API_KEY}"
+          if [ -z "$CLIENT_ID" ]; then
+            echo "❌ ERROR: CLIENT_ID está vacío"
             exit 1
           fi
         env:
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-          GOOGLE_SPREADSHEET_ID: ${{ secrets.GOOGLE_SPREADSHEET_ID }}
+          CLIENT_ID: ${{ secrets.CLIENT_ID }}
+          API_KEY:   ${{ secrets.API_KEY }}
 
       # Genera config.js a partir de los secrets de GitHub
       # De esta forma nunca se sube config.js al repo pero sí está disponible en el deploy
@@ -49,20 +48,17 @@ jobs:
         run: |
           cat > config.js << 'EOF'
           const CONFIG = {
-            CLIENT_ID:      '${{ secrets.GOOGLE_CLIENT_ID }}',
-            API_KEY:        '${{ secrets.GOOGLE_API_KEY }}',
-            SPREADSHEET_ID: '${{ secrets.GOOGLE_SPREADSHEET_ID }}',
+            CLIENT_ID: '${{ secrets.CLIENT_ID }}',
+            API_KEY:   '${{ secrets.API_KEY }}',
             SCOPES: [
               'https://www.googleapis.com/auth/spreadsheets',
               'https://www.googleapis.com/auth/drive.readonly',
             ].join(' '),
             SHEETS: {
-              USERS:         'users',
               LOCALES:       'locales',
               HAMBURGUESAS:  'hamburguesas',
               DEGUSTACIONES: 'degustaciones',
               TOP_ORDER:     'top_order',
-              SHARES:        'shares',
             },
           };
           EOF

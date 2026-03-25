@@ -73,9 +73,37 @@ const App = (() => {
     _showScreen('loading');
 
     Auth.init({
-      onLoginSuccess: async (user, accessToken) => {
+      onLoginSuccess: async (user) => {
         AppState.user = user;
-        AppState.db = new SheetsDB(CONFIG.SPREADSHEET_ID, () => Auth.getAccessToken());
+
+        // ── Spreadsheet personal ──────────────────────────────────────────
+        // Cada usuario tiene su propio Google Sheet creado en su Drive.
+        // El ID se guarda en localStorage para no recrearlo en cada sesión.
+        // Clave: burgerrank_sheet_{hash} — el hash evita exponer el email.
+        const storageKey = `burgerrank_sheet_${user.hash}`;
+        let spreadsheetId = localStorage.getItem(storageKey);
+
+        if (!spreadsheetId) {
+          // Primera vez: crear el spreadsheet personal
+          _showScreen('app');
+          _updateHeader(user);
+          App.showToast('Primera vez: creando tu spreadsheet personal en Drive…', 'info', 6000);
+
+          try {
+            spreadsheetId = await SheetsDB.createPersonalSpreadsheet(
+              Auth.getAccessToken(),
+              user.name,
+            );
+            localStorage.setItem(storageKey, spreadsheetId);
+            App.showToast('¡Tu spreadsheet personal fue creado! 🎉', 'success');
+          } catch (err) {
+            console.error('Error creando spreadsheet:', err);
+            App.showToast('Error al crear tu spreadsheet: ' + err.message, 'error');
+            return;
+          }
+        }
+
+        AppState.db = new SheetsDB(spreadsheetId, () => Auth.getAccessToken());
 
         // Actualizar UI del header
         _updateHeader(user);
@@ -409,15 +437,44 @@ const AddLocal = (() => {
       }
     },
 
-    parseUrl() {
-      const url = document.getElementById('maps-url-input')?.value.trim();
-      if (!url) {
+    async parseUrl() {
+      const rawUrl = document.getElementById('maps-url-input')?.value.trim();
+      if (!rawUrl) {
         App.showToast('Ingresá una URL de Google Maps', 'error');
         return;
       }
 
-      const result = Maps.parse(url);
       const container = document.getElementById('parse-result');
+      let urlToParse = rawUrl;
+
+      // Las URLs cortas (maps.app.goo.gl / goo.gl/maps) no se pueden parsear directamente.
+      // Intentamos expandirlas via proxy CORS antes de parsear.
+      if (Maps.isShortUrl(rawUrl)) {
+        container.innerHTML = `
+          <div class="card p-4 flex items-center gap-3">
+            <div class="w-5 h-5 border-2 border-[#D2A679] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+            <p class="text-sm text-gray-400">Expandiendo URL corta…</p>
+          </div>
+        `;
+
+        const expanded = await Maps.expandShortUrl(rawUrl);
+        if (expanded) {
+          urlToParse = expanded;
+        } else {
+          // No se pudo expandir → formulario manual con la URL original guardada
+          container.innerHTML = `
+            <div class="card p-4">
+              <p class="text-[#FFD700] text-sm mb-3">
+                ⚠️ No se pudo expandir la URL corta. Completá los datos manualmente:
+              </p>
+              ${this._manualFormHtml(rawUrl)}
+            </div>
+          `;
+          return;
+        }
+      }
+
+      const result = Maps.parse(urlToParse);
 
       if (!result.isValid) {
         container.innerHTML = `
@@ -433,12 +490,11 @@ const AddLocal = (() => {
 
       _parsedData = result;
 
-      if (result.isShortUrl || result.needsManualInput) {
+      if (result.needsManualInput) {
         container.innerHTML = `
           <div class="card p-4">
             <p class="text-[#FFD700] text-sm mb-3">
-              ⚠️ ${result.isShortUrl ? 'URL corta detectada — no se puede parsear desde el browser.' : 'No se pudo extraer el nombre.'}
-              Completá los datos manualmente:
+              ⚠️ No se pudo extraer el nombre automáticamente. Completá los datos:
             </p>
             ${this._manualFormHtml(result.mapsUrl)}
           </div>

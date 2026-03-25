@@ -62,14 +62,23 @@ const Auth = (() => {
   }
 
   /**
-   * Guarda el usuario en sessionStorage para restaurar sesión sin re-login.
+   * Guarda el usuario y el token en sessionStorage para restaurar sesión sin re-login.
+   * El token dura máx. 1 hora; al cerrar la pestaña se limpia solo (sessionStorage).
    */
   function _persistSession() {
     sessionStorage.setItem('burgerrank_user', JSON.stringify(_user));
   }
 
+  function _persistToken() {
+    sessionStorage.setItem('burgerrank_token', JSON.stringify({
+      token:  _accessToken,
+      expiry: _tokenExpiry,
+    }));
+  }
+
   function _clearSession() {
     sessionStorage.removeItem('burgerrank_user');
+    sessionStorage.removeItem('burgerrank_token');
     _user = null;
     _accessToken = null;
     _tokenExpiry = 0;
@@ -174,34 +183,15 @@ const Auth = (() => {
     // Los tokens de Google duran 3600 seg; guardamos con margen de 5 min
     _tokenExpiry = Date.now() + (tokenResponse.expires_in - 300) * 1000;
 
-    // Verificar whitelist
-    await _verifyAndProceed();
+    // Cachear token para evitar el popup en cada F5 dentro de la misma sesión
+    _persistToken();
+
+    _callbacks.onLoginSuccess?.(_user);
   }
 
   function _requestAccessToken() {
     if (_tokenClient) {
       _tokenClient.requestAccessToken({ prompt: '' });
-    }
-  }
-
-  /**
-   * Verifica el email contra la hoja `users` del spreadsheet.
-   * Si está autorizado → dispara onLoginSuccess; si no → onLoginRestricted.
-   */
-  async function _verifyAndProceed() {
-    try {
-      // Creamos un SheetsDB temporal solo para la verificación
-      const tempDB = new SheetsDB(CONFIG.SPREADSHEET_ID, () => _accessToken);
-      const authorized = await tempDB.isUserAuthorized(_user.email);
-
-      if (authorized) {
-        _callbacks.onLoginSuccess?.(_user, _accessToken);
-      } else {
-        _callbacks.onLoginRestricted?.(_user);
-      }
-    } catch (err) {
-      console.error('Error verificando whitelist:', err);
-      App.showToast('Error al verificar acceso. Revisá tu conexión.', 'error');
     }
   }
 
@@ -218,13 +208,26 @@ const Auth = (() => {
       _initTokenClient();
 
       // Intentar restaurar sesión previa desde sessionStorage
-      const saved = sessionStorage.getItem('burgerrank_user');
-      if (saved) {
+      const savedUser = sessionStorage.getItem('burgerrank_user');
+      if (savedUser) {
         try {
-          _user = JSON.parse(saved);
-          // Sesión previa: el usuario ya autorizó → requestAccessToken con prompt:''
-          // no debería abrir popup. Si igual lo bloqueara, _handleTokenResponse
-          // caerá en error y el usuario verá el botón de login normalmente.
+          _user = JSON.parse(savedUser);
+
+          // Intentar reutilizar el token cacheado (evita round-trip a Google en cada F5)
+          const savedToken = sessionStorage.getItem('burgerrank_token');
+          if (savedToken) {
+            const { token, expiry } = JSON.parse(savedToken);
+            if (token && expiry > Date.now()) {
+              // Token válido: usarlo directamente sin mostrar popup
+              _accessToken = token;
+              _tokenExpiry = expiry;
+              _callbacks.onLoginSuccess?.(_user);
+              return;
+            }
+          }
+
+          // Token expirado o no cacheado: pedir uno nuevo silenciosamente
+          // prompt:'' no abre popup si el usuario ya consintió antes
           _requestAccessToken();
           return;
         } catch {
@@ -265,14 +268,17 @@ const Auth = (() => {
      */
     refreshToken() {
       return new Promise((resolve) => {
-        const originalCallback = _callbacks.onTokenRefreshed;
-        _callbacks.onTokenRefreshed = () => {
-          _callbacks.onTokenRefreshed = originalCallback;
+        const original = _handleTokenResponse;
+        // Interceptar la próxima respuesta de token para resolver la promesa
+        const oneShot = async (resp) => {
+          await original(resp);
           resolve(_accessToken);
         };
         if (_tokenClient) {
           _tokenClient.requestAccessToken({ prompt: '' });
         }
+        // Fallback: resolver con el token actual si el callback no se llama
+        setTimeout(() => resolve(_accessToken), 10000);
       });
     },
 

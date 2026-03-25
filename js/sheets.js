@@ -134,6 +134,72 @@ class SheetsDB {
     return result;
   }
 
+  // ── Creación de spreadsheet personal ────────────────────────────────────
+
+  /**
+   * Crea un nuevo Google Spreadsheet en el Drive del usuario autenticado.
+   * Se llama solo la primera vez que el usuario inicia sesión.
+   *
+   * Por qué aquí y no en un backend: el scope `spreadsheets` permite crear
+   * y modificar hojas en el Drive del usuario sin necesidad de servidor propio.
+   *
+   * @param {string} accessToken
+   * @param {string} userName - nombre del usuario para el título del sheet
+   * @returns {string} spreadsheetId del nuevo documento
+   */
+  static async createPersonalSpreadsheet(accessToken, userName) {
+    // 1. Crear el documento con todas las hojas requeridas
+    const createResp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: { title: `BurgerRank — ${userName}` },
+        sheets: [
+          { properties: { title: 'locales' } },
+          { properties: { title: 'hamburguesas' } },
+          { properties: { title: 'degustaciones' } },
+          { properties: { title: 'top_order' } },
+        ],
+      }),
+    });
+
+    if (!createResp.ok) {
+      const err = await createResp.json().catch(() => ({}));
+      throw new Error(err.error?.message || 'No se pudo crear el spreadsheet personal');
+    }
+
+    const { spreadsheetId } = await createResp.json();
+
+    // 2. Inicializar los headers de cada hoja en un solo batch request
+    const headers = [
+      { range: 'locales!A1:G1',       values: [['id','nombre','direccion','maps_url','maps_place_id','foto_url','fecha_import']] },
+      { range: 'hamburguesas!A1:E1',   values: [['id','local_id','nombre','descripcion','tags']] },
+      { range: 'degustaciones!A1:G1',  values: [['id','user_email','hamburguesa_id','local_id','top_n','comentario','fecha']] },
+      { range: 'top_order!A1:C1',      values: [['user_email','local_id','posicion_manual']] },
+    ];
+
+    const initResp = await fetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values:batchUpdate`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ valueInputOption: 'RAW', data: headers }),
+      }
+    );
+
+    if (!initResp.ok) {
+      throw new Error('El spreadsheet se creó pero no se pudo inicializar');
+    }
+
+    return spreadsheetId;
+  }
+
   // ── Lectura pública (API Key, sin OAuth) ─────────────────────────────────
 
   /**

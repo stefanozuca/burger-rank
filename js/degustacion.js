@@ -476,11 +476,13 @@ const Degustacion = (() => {
           comentario: _state.comentario,
         });
 
-        // Actualizar estado local
+        // Actualizar estado local inmediatamente para que el home muestre los datos al instante
         AppState.data.degustaciones.push(newDeg);
 
         App.showToast('¡Degustación guardada! 🍔', 'success');
         App.navigate('#home');
+        // Refresh en background para confirmar con los datos del Sheet
+        App.refresh();
 
       } catch (err) {
         console.error('Error guardando degustación:', err);
