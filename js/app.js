@@ -447,31 +447,27 @@ const AddLocal = (() => {
       const container = document.getElementById('parse-result');
       let urlToParse = rawUrl;
 
-      // Las URLs cortas (maps.app.goo.gl / goo.gl/maps) no se pueden parsear directamente.
-      // Intentamos expandirlas via proxy CORS antes de parsear.
+      // Las URLs cortas (maps.app.goo.gl / goo.gl/maps) no se pueden parsear desde el browser
+      // por restricciones de CORS — no hay proxy CORS confiable para resolverlas client-side.
+      // La URL corta igual funciona como link de Maps: solo pedimos el nombre al usuario.
       if (Maps.isShortUrl(rawUrl)) {
+        _parsedData = { isValid: true, isShortUrl: true, mapsUrl: rawUrl };
         container.innerHTML = `
-          <div class="card p-4 flex items-center gap-3">
-            <div class="w-5 h-5 border-2 border-[#D2A679] border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
-            <p class="text-sm text-gray-400">Expandiendo URL corta…</p>
+          <div class="card p-4">
+            <div class="flex items-start gap-3 mb-4">
+              <span class="text-xl flex-shrink-0">📍</span>
+              <div>
+                <p class="text-sm font-semibold text-[#D2A679]">URL corta detectada</p>
+                <p class="text-xs text-gray-400 mt-0.5">
+                  El link de "Compartir" de Maps no incluye el nombre del local.
+                  Escribilo y listo — el link ya está guardado.
+                </p>
+              </div>
+            </div>
+            ${this._manualFormHtml(rawUrl)}
           </div>
         `;
-
-        const expanded = await Maps.expandShortUrl(rawUrl);
-        if (expanded) {
-          urlToParse = expanded;
-        } else {
-          // No se pudo expandir → formulario manual con la URL original guardada
-          container.innerHTML = `
-            <div class="card p-4">
-              <p class="text-[#FFD700] text-sm mb-3">
-                ⚠️ No se pudo expandir la URL corta. Completá los datos manualmente:
-              </p>
-              ${this._manualFormHtml(rawUrl)}
-            </div>
-          `;
-          return;
-        }
+        return;
       }
 
       const result = Maps.parse(urlToParse);

@@ -93,28 +93,6 @@ const Maps = (() => {
   }
 
   /**
-   * Expande una URL corta de Google Maps usando allorigins.win como proxy CORS.
-   * allorigins sigue los redirects y retorna la URL final en status.url.
-   * Retorna null si falla (timeout, error de red, URL no reconocida).
-   */
-  async function _expandShortUrl(shortUrl) {
-    try {
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(shortUrl)}`;
-      const resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(8000) });
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      const finalUrl = data.status?.url;
-      // Solo aceptamos si la URL final es de Google Maps
-      if (finalUrl && (finalUrl.includes('google.com/maps') || finalUrl.includes('maps.google.com'))) {
-        return finalUrl;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
    * Valida que la URL sea de Google Maps.
    */
   function _isGoogleMapsUrl(url) {
@@ -167,12 +145,6 @@ const Maps = (() => {
   return {
     /** Expone la detección de URL corta para uso externo. */
     isShortUrl(url) { return _isShortUrl(url.trim()); },
-
-    /**
-     * Intenta expandir una URL corta via proxy CORS.
-     * Retorna la URL larga o null si no se pudo expandir.
-     */
-    expandShortUrl: _expandShortUrl,
 
     /**
      * Parsea una URL de Google Maps y retorna la info extraída.
