@@ -125,6 +125,11 @@ const App = (() => {
         AppState.data = { locales: [], hamburguesas: [], degustaciones: [], topOrder: [] };
         _showScreen('login');
       },
+
+      // Sin sesión guardada en sessionStorage → ir directo al login sin loading infinito
+      onNoSession: () => {
+        _showScreen('login');
+      },
     });
   }
 

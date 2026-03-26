@@ -28,6 +28,7 @@ const Auth = (() => {
   const _callbacks = {
     onLoginSuccess: null,
     onLogout:       null,
+    onNoSession:    null,   // disparado cuando no hay sesión guardada → mostrar pantalla de login
   };
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -166,8 +167,9 @@ const Auth = (() => {
         }
       }
 
-      // Sin sesión guardada → mostrar pantalla de login.
+      // Sin sesión guardada → notificar a app.js para que muestre la pantalla de login.
       // El botón en index.html llamará a Auth.startLogin() cuando el usuario haga click.
+      _callbacks.onNoSession?.();
     },
 
     /**
