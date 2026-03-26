@@ -76,40 +76,67 @@ const App = (() => {
       onLoginSuccess: async (user) => {
         AppState.user = user;
 
-        // ── Spreadsheet personal ──────────────────────────────────────────
-        // Cada usuario tiene su propio Google Sheet creado en su Drive.
-        // El ID se guarda en localStorage para no recrearlo en cada sesión.
-        // Clave: burgerrank_sheet_{hash} — el hash evita exponer el email.
-        const storageKey = `burgerrank_sheet_${user.hash}`;
+        // ── Resolución del spreadsheet personal ──────────────────────────
+        //
+        // Prioridad:
+        //   1. ID en localStorage (mismo dispositivo, camino rápido)
+        //   2. Búsqueda en Google Drive (nuevo dispositivo, ya existe en Drive)
+        //   3. Creación de uno nuevo (primer login real, nunca usó la app)
+        //
+        // Luego de obtener el ID, siempre se valida la estructura:
+        //   - Si faltan hojas → se crean con sus headers
+        //   - Si faltan headers → se agregan
+        //   - Los datos existentes NO se tocan
+        //
+        const storageKey  = `burgerrank_sheet_${user.hash}`;
         let spreadsheetId = localStorage.getItem(storageKey);
 
-        if (!spreadsheetId) {
-          // Primera vez: crear el spreadsheet personal
-          _showScreen('app');
-          _updateHeader(user);
-          App.showToast('Primera vez: creando tu spreadsheet personal en Drive…', 'info', 6000);
+        // Indicador de estado durante la resolución (el usuario ve el spinner de loading)
+        const setStatus = (msg) => {
+          const el = document.getElementById('loading-status');
+          if (el) el.textContent = msg;
+        };
 
+        if (!spreadsheetId) {
+          // No hay ID local → buscar en Drive antes de crear
           try {
-            spreadsheetId = await SheetsDB.createPersonalSpreadsheet(
-              Auth.getAccessToken(),
-              user.name,
-            );
-            localStorage.setItem(storageKey, spreadsheetId);
-            App.showToast('¡Tu spreadsheet personal fue creado! 🎉', 'success');
+            setStatus('Buscando tu spreadsheet en Drive…');
+            spreadsheetId = await SheetsDB.findExistingSpreadsheet(Auth.getAccessToken());
+
+            if (spreadsheetId) {
+              // ✅ Encontrado en Drive → guardar en localStorage y validar estructura
+              setStatus('Spreadsheet encontrado. Verificando estructura…');
+              await SheetsDB.validateAndRepairSpreadsheet(spreadsheetId, Auth.getAccessToken());
+              localStorage.setItem(storageKey, spreadsheetId);
+              App.showToast('¡Datos recuperados de Drive! 🎉', 'success');
+            } else {
+              // 🆕 No existe → crear uno nuevo
+              setStatus('Creando tu spreadsheet personal en Drive…');
+              spreadsheetId = await SheetsDB.createPersonalSpreadsheet(
+                Auth.getAccessToken(),
+                user.name,
+              );
+              localStorage.setItem(storageKey, spreadsheetId);
+              App.showToast('¡Tu spreadsheet personal fue creado! 🎉', 'success');
+            }
           } catch (err) {
-            console.error('Error creando spreadsheet:', err);
-            App.showToast('Error al crear tu spreadsheet: ' + err.message, 'error');
+            console.error('Error al resolver spreadsheet:', err);
+            App.showToast('Error con tu spreadsheet: ' + err.message, 'error');
+            _showScreen('login');
             return;
           }
+        } else {
+          // ID en localStorage → validar estructura silenciosamente en background
+          // No bloqueamos el arranque por esto; si falla, la app igual carga
+          SheetsDB.validateAndRepairSpreadsheet(spreadsheetId, Auth.getAccessToken())
+            .catch((err) => console.warn('[Sheet repair silencioso]', err));
         }
 
         AppState.db = new SheetsDB(spreadsheetId, () => Auth.getAccessToken());
 
-        // Actualizar UI del header
         _updateHeader(user);
         _showScreen('app');
 
-        // Cargar datos y mostrar home
         await _loadData();
         App.navigate(location.hash || '#home');
       },

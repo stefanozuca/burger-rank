@@ -147,6 +147,133 @@ class SheetsDB {
    * @param {string} userName - nombre del usuario para el título del sheet
    * @returns {string} spreadsheetId del nuevo documento
    */
+  // ── Schema de referencia (usado en validación) ──────────────────────────
+  static get SCHEMA() {
+    return {
+      locales:       ['id','nombre','direccion','maps_url','maps_place_id','foto_url','fecha_import'],
+      hamburguesas:  ['id','local_id','nombre','descripcion','tags'],
+      degustaciones: ['id','user_email','hamburguesa_id','local_id','top_n','comentario','fecha'],
+      top_order:     ['user_email','local_id','posicion_manual'],
+    };
+  }
+
+  /**
+   * Busca en Google Drive del usuario si ya existe un spreadsheet de BurgerRank.
+   * Usa el scope drive.readonly que ya fue otorgado en el flujo OAuth.
+   *
+   * Retorna el spreadsheetId del primero encontrado (orden por fecha de creación),
+   * o null si no hay ninguno.
+   *
+   * Por qué buscar en Drive en vez de solo localStorage:
+   * localStorage es por dispositivo → nuevo dispositivo = localStorage vacío,
+   * aunque el spreadsheet ya exista en Drive desde otro dispositivo.
+   */
+  static async findExistingSpreadsheet(accessToken) {
+    const q = encodeURIComponent(
+      "name contains 'BurgerRank' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+    );
+    const resp = await fetch(
+      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,createdTime)&orderBy=createdTime`,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    if (!resp.ok) return null;   // falla silenciosamente (scope no disponible, etc.)
+    const data = await resp.json();
+    // El primero en orden cronológico es el original (no duplicados por creación fallida)
+    return data.files?.[0]?.id || null;
+  }
+
+  /**
+   * Valida la estructura de un spreadsheet existente y repara lo que falte.
+   *
+   * Chequeos:
+   * 1. Verifica que existan las 4 hojas requeridas → crea las faltantes
+   * 2. Verifica que cada hoja tenga headers en la fila 1 → los agrega si faltan
+   *
+   * No toca los datos existentes; solo agrega lo que falta.
+   * Útil para: nuevo dispositivo, spreadsheet creado a medias, hojas borradas accidentalmente.
+   *
+   * @param {string} spreadsheetId
+   * @param {string} accessToken
+   * @returns {string} el mismo spreadsheetId (para encadenar)
+   */
+  static async validateAndRepairSpreadsheet(spreadsheetId, accessToken) {
+    const baseUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}`;
+    const authHeader = { Authorization: `Bearer ${accessToken}` };
+
+    // ── 1. Obtener metadata del spreadsheet (lista de hojas existentes) ────
+    const metaResp = await fetch(`${baseUrl}?fields=sheets.properties.title`, {
+      headers: authHeader,
+    });
+    if (!metaResp.ok) {
+      const err = await metaResp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `No se pudo acceder al spreadsheet (HTTP ${metaResp.status})`);
+    }
+    const meta = await metaResp.json();
+    const existingSheets = new Set(meta.sheets.map((s) => s.properties.title));
+
+    const schema = SheetsDB.SCHEMA;
+    const missingSheets  = Object.keys(schema).filter((name) => !existingSheets.has(name));
+    const presentSheets  = Object.keys(schema).filter((name) =>  existingSheets.has(name));
+
+    // ── 2. Crear hojas faltantes ───────────────────────────────────────────
+    if (missingSheets.length > 0) {
+      const batchResp = await fetch(`${baseUrl}:batchUpdate`, {
+        method:  'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requests: missingSheets.map((title) => ({ addSheet: { properties: { title } } })),
+        }),
+      });
+      if (!batchResp.ok) {
+        const err = await batchResp.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Error al crear hojas faltantes');
+      }
+    }
+
+    // ── 3. Verificar headers en hojas que ya existían ─────────────────────
+    // (Las hojas recién creadas no tienen datos → sus headers se agregan en paso 4)
+    let sheetsNeedingHeaders = [...missingSheets]; // las nuevas siempre necesitan headers
+
+    if (presentSheets.length > 0) {
+      const ranges = presentSheets.map((name) => `${name}!A1:Z1`);
+      const batchGetUrl = `${baseUrl}/values:batchGet?ranges=${ranges.map(encodeURIComponent).join('&ranges=')}`;
+      const readResp = await fetch(batchGetUrl, { headers: authHeader });
+
+      if (readResp.ok) {
+        const readData = await readResp.json();
+        readData.valueRanges?.forEach((vr, i) => {
+          const sheetName = presentSheets[i];
+          const firstRow  = vr.values?.[0] || [];
+          // Si la fila 1 está vacía o no tiene las columnas base → necesita headers
+          if (firstRow.length === 0) {
+            sheetsNeedingHeaders.push(sheetName);
+          }
+        });
+      }
+    }
+
+    // ── 4. Escribir headers en las hojas que los necesitan ─────────────────
+    if (sheetsNeedingHeaders.length > 0) {
+      const updateResp = await fetch(`${baseUrl}/values:batchUpdate`, {
+        method:  'POST',
+        headers: { ...authHeader, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          valueInputOption: 'RAW',
+          data: sheetsNeedingHeaders.map((name) => ({
+            range:  `${name}!A1`,
+            values: [schema[name]],
+          })),
+        }),
+      });
+      if (!updateResp.ok) {
+        const err = await updateResp.json().catch(() => ({}));
+        throw new Error(err.error?.message || 'Error al escribir headers');
+      }
+    }
+
+    return spreadsheetId;
+  }
+
   static async createPersonalSpreadsheet(accessToken, userName) {
     // 1. Crear el documento con todas las hojas requeridas
     const createResp = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
