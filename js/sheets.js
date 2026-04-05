@@ -179,15 +179,20 @@ class SheetsDB {
 
     for (const q of queries) {
       const resp = await fetch(
-        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,createdTime)&orderBy=createdTime asc`,
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,createdTime)&orderBy=createdTime`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      if (!resp.ok) return null;  // falla silenciosamente (scope no disponible, etc.)
+      if (!resp.ok) {
+        // Propagamos el error para que el caller pueda distinguir entre
+        // "no encontró nada" (null) y "falló la búsqueda" (excepción).
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(`drive_search_error:${resp.status}:${err.error?.message || 'unknown'}`);
+      }
       const data = await resp.json();
       // El más antiguo es el original (descarta duplicados por creaciones fallidas)
       if (data.files?.length) return data.files[0].id;
     }
-    return null;
+    return null;  // búsqueda exitosa pero sin resultados → usuario nuevo
   }
 
   /**

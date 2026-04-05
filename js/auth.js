@@ -112,6 +112,19 @@ const Auth = (() => {
       return;
     }
 
+    // Verificar que drive.readonly esté incluido en el token.
+    // Si el usuario autorizó la app en una versión anterior (sin ese scope),
+    // el consent cacheado de Google no lo incluye → necesitamos re-consent.
+    const grantedScopes = (tokenResponse.scope || '').split(' ');
+    const hasDriveScope = grantedScopes.some((s) => s.includes('drive.readonly'));
+    if (!hasDriveScope) {
+      console.warn('[Auth] drive.readonly no incluido en el token. Solicitando re-consent…');
+      // Pedimos de nuevo con prompt:'consent' para forzar que aparezcan todos los scopes.
+      // Esto abre el popup de consentimiento de Google una sola vez.
+      _tokenClient.requestAccessToken({ prompt: 'consent' });
+      return;
+    }
+
     // Primera vez: obtener datos del usuario via userinfo API
     try {
       const info = await _fetchUserInfo(_accessToken);

@@ -110,7 +110,7 @@ const App = (() => {
               localStorage.setItem(storageKey, spreadsheetId);
               App.showToast('¡Datos recuperados de Drive! 🎉', 'success');
             } else {
-              // 🆕 No existe → crear uno nuevo
+              // 🆕 Búsqueda exitosa pero sin resultados → usuario nuevo → crear spreadsheet
               setStatus('Creando tu spreadsheet personal en Drive…');
               spreadsheetId = await SheetsDB.createPersonalSpreadsheet(
                 Auth.getAccessToken(),
@@ -121,6 +121,20 @@ const App = (() => {
             }
           } catch (err) {
             console.error('Error al resolver spreadsheet:', err);
+
+            if (err.message.startsWith('drive_search_error:')) {
+              // La búsqueda en Drive falló (ej: scope no concedido).
+              // NO creamos un nuevo spreadsheet vacío — mostramos error claro.
+              const code = err.message.split(':')[1];
+              const hint = code === '403'
+                ? 'Permiso de Google Drive denegado. Cerrá sesión, volvé a ingresar y aceptá todos los permisos solicitados.'
+                : `Error al buscar tu spreadsheet en Drive (código ${code}). Intentá de nuevo.`;
+              App.showToast(hint, 'error', 8000);
+              _showScreen('login');
+              return;
+            }
+
+            // Cualquier otro error (Sheets API, red, etc.)
             App.showToast('Error con tu spreadsheet: ' + err.message, 'error');
             _showScreen('login');
             return;
