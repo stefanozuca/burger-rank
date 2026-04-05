@@ -169,17 +169,25 @@ class SheetsDB {
    * aunque el spreadsheet ya exista en Drive desde otro dispositivo.
    */
   static async findExistingSpreadsheet(accessToken) {
-    const q = encodeURIComponent(
-      "name contains 'BurgerRank' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
-    );
-    const resp = await fetch(
-      `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,createdTime)&orderBy=createdTime`,
-      { headers: { Authorization: `Bearer ${accessToken}` } }
-    );
-    if (!resp.ok) return null;   // falla silenciosamente (scope no disponible, etc.)
-    const data = await resp.json();
-    // El primero en orden cronológico es el original (no duplicados por creación fallida)
-    return data.files?.[0]?.id || null;
+    // Busca primero por nombre exacto (nuevo formato), luego por nombre parcial
+    // (compatibilidad con spreadsheets creados antes con título "BurgerRank — {nombre}").
+    const MIME = "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false";
+    const queries = [
+      `name = 'BurgerRank' and ${MIME}`,
+      `name contains 'BurgerRank' and ${MIME}`,
+    ];
+
+    for (const q of queries) {
+      const resp = await fetch(
+        `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name,createdTime)&orderBy=createdTime asc`,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (!resp.ok) return null;  // falla silenciosamente (scope no disponible, etc.)
+      const data = await resp.json();
+      // El más antiguo es el original (descarta duplicados por creaciones fallidas)
+      if (data.files?.length) return data.files[0].id;
+    }
+    return null;
   }
 
   /**
@@ -283,7 +291,7 @@ class SheetsDB {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        properties: { title: `BurgerRank — ${userName}` },
+        properties: { title: 'BurgerRank' },
         sheets: [
           { properties: { title: 'locales' } },
           { properties: { title: 'hamburguesas' } },

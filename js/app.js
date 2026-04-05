@@ -411,48 +411,57 @@ const Profile = (() => {
 
 // ── Módulo Add Local (inline) ─────────────────────────────────────────────
 const AddLocal = (() => {
-  let _parsedData = null;
-  let _manualMode = false;
+  let _preview  = null;   // datos del local listo para guardar { nombre, direccion, maps_url, maps_place_id, foto_url }
+  let _results  = [];     // lugares devueltos por searchByText
+  let _debounce = null;
 
-  function _escHtml(str) {
+  function _esc(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function _isUrl(text) {
+    return /^https?:\/\//i.test(text) ||
+           text.includes('maps.google') ||
+           text.includes('goo.gl');
+  }
+
+  // Convierte un objeto place de Places API v1 al formato interno
+  function _placeToData(place) {
+    const photoName = place.photos?.[0]?.name;
+    return {
+      nombre:        place.displayName?.text || '',
+      direccion:     place.formattedAddress || '',
+      maps_url:      `https://www.google.com/maps/place/?q=place_id:${place.id}`,
+      maps_place_id: place.id || '',
+      foto_url:      photoName ? Maps.getPhotoUrl(photoName, 600) : '',
+    };
+  }
+
   return {
     init() {
-      _parsedData = null;
-      _manualMode = false;
+      _preview  = null;
+      _results  = [];
+      _debounce = null;
       this.render();
     },
 
     render() {
-      const container = document.getElementById('view-add-local');
-      if (!container) return;
-
-      container.innerHTML = `
+      const c = document.getElementById('view-add-local');
+      if (!c) return;
+      c.innerHTML = `
         <div class="px-4 pt-4 pb-8 view-enter">
-          <h2 class="text-xl font-bold mb-2">Importar local</h2>
-          <p class="text-sm text-gray-400 mb-6">
-            Pegá la URL de Google Maps de la hamburguesería.
+          <h2 class="text-xl font-bold mb-1">Importar local</h2>
+          <p class="text-sm text-gray-400 mb-4">
+            Pegá un link de Google Maps o escribí el nombre del local.
           </p>
-
-          <!-- URL Input -->
-          <div class="space-y-3">
-            <textarea id="maps-url-input"
-                      placeholder="https://www.google.com/maps/place/..."
-                      class="input" rows="3"
-                      oninput="AddLocal.onUrlInput(this.value)"></textarea>
-            <button class="btn-primary w-full" onclick="AddLocal.parseUrl()">
-              🔍 Analizar URL
-            </button>
-          </div>
-
-          <!-- Resultado del parse -->
-          <div id="parse-result" class="mt-6"></div>
-
-          <!-- Modo manual -->
-          <div class="mt-4 pt-4 border-t border-[#5c3d25]">
+          <input id="local-input" type="text" autocomplete="off"
+                 placeholder="Nombre o URL de Google Maps…"
+                 class="input"
+                 oninput="AddLocal.onInput(this.value)">
+          <div id="local-suggestions" class="mt-2"></div>
+          <div id="local-preview" class="mt-4"></div>
+          <div class="mt-6 pt-4 border-t border-[#5c3d25]">
             <button class="btn-ghost w-full text-sm" onclick="AddLocal.showManualForm()">
               ✏️ Ingresar datos manualmente
             </button>
@@ -461,115 +470,169 @@ const AddLocal = (() => {
       `;
     },
 
-    onUrlInput(value) {
-      // Limpiar resultado previo si el usuario edita
-      if (value.trim() === '') {
-        document.getElementById('parse-result').innerHTML = '';
-        _parsedData = null;
+    onInput(value) {
+      const text = value.trim();
+      clearTimeout(_debounce);
+      _preview = null;
+      _results = [];
+      document.getElementById('local-suggestions').innerHTML = '';
+      document.getElementById('local-preview').innerHTML = '';
+
+      if (!text) return;
+
+      if (_isUrl(text)) {
+        this._handleUrl(text);
+      } else if (text.length >= 3) {
+        document.getElementById('local-suggestions').innerHTML =
+          '<p class="text-xs text-gray-500 px-1 mt-2">Buscando…</p>';
+        _debounce = setTimeout(() => this._searchText(text), 450);
       }
     },
 
-    async parseUrl() {
-      const rawUrl = document.getElementById('maps-url-input')?.value.trim();
-      if (!rawUrl) {
-        App.showToast('Ingresá una URL de Google Maps', 'error');
-        return;
-      }
+    async _handleUrl(rawUrl) {
+      const sugg = document.getElementById('local-suggestions');
 
-      const container = document.getElementById('parse-result');
-      let urlToParse = rawUrl;
-
-      // Las URLs cortas (maps.app.goo.gl / goo.gl/maps) no se pueden parsear desde el browser
-      // por restricciones de CORS — no hay proxy CORS confiable para resolverlas client-side.
-      // La URL corta igual funciona como link de Maps: solo pedimos el nombre al usuario.
       if (Maps.isShortUrl(rawUrl)) {
-        _parsedData = { isValid: true, isShortUrl: true, mapsUrl: rawUrl };
-        container.innerHTML = `
-          <div class="card p-4">
-            <div class="flex items-start gap-3 mb-4">
-              <span class="text-xl flex-shrink-0">📍</span>
-              <div>
-                <p class="text-sm font-semibold text-[#D2A679]">URL corta detectada</p>
-                <p class="text-xs text-gray-400 mt-0.5">
-                  El link de "Compartir" de Maps no incluye el nombre del local.
-                  Escribilo y listo — el link ya está guardado.
-                </p>
-              </div>
-            </div>
-            ${this._manualFormHtml(rawUrl)}
-          </div>
-        `;
+        // URL corta → no se puede resolver client-side → pedir nombre manual
+        _preview = { nombre: '', direccion: '', maps_url: rawUrl, maps_place_id: '', foto_url: '' };
+        this._renderPreview(true);
         return;
       }
 
-      const result = Maps.parse(urlToParse);
-
+      const result = Maps.parse(rawUrl);
       if (!result.isValid) {
-        container.innerHTML = `
-          <div class="card p-4 border-red-800">
-            <p class="text-[#E32636] text-sm">❌ ${_escHtml(result.error)}</p>
-            <p class="text-xs text-gray-500 mt-1">
-              Asegurate de que sea una URL de Google Maps (google.com/maps o goo.gl/maps)
-            </p>
-          </div>
-        `;
+        sugg.innerHTML = '<p class="text-xs text-[#E32636] px-1 mt-2">URL inválida — asegurate que sea de Google Maps</p>';
         return;
       }
 
-      _parsedData = result;
-
-      if (result.needsManualInput) {
-        container.innerHTML = `
-          <div class="card p-4">
-            <p class="text-[#FFD700] text-sm mb-3">
-              ⚠️ No se pudo extraer el nombre automáticamente. Completá los datos:
-            </p>
-            ${this._manualFormHtml(result.mapsUrl)}
-          </div>
-        `;
+      if (result.placeId) {
+        sugg.innerHTML = '<p class="text-xs text-gray-500 px-1 mt-2">Obteniendo datos del local…</p>';
+        try {
+          const place = await Maps.fetchPlaceDetails(result.placeId);
+          sugg.innerHTML = '';
+          _preview = _placeToData(place);
+          this._renderPreview();
+        } catch {
+          // Places API falló → usar lo que pudo extraer la URL
+          sugg.innerHTML = '';
+          _preview = {
+            nombre:        Maps.formatName(result.name) || '',
+            direccion:     result.address || '',
+            maps_url:      result.mapsUrl || rawUrl,
+            maps_place_id: result.placeId || '',
+            foto_url:      '',
+          };
+          this._renderPreview();
+        }
       } else {
-        container.innerHTML = `
-          <div class="card overflow-hidden">
-            <div class="local-photo-placeholder text-5xl">🍔</div>
-            <div class="p-4">
-              <h3 class="font-bold text-lg">${_escHtml(Maps.formatName(result.name))}</h3>
-              ${result.coords
-                ? `<p class="text-xs text-gray-400 mt-1">📍 ${result.coords.lat.toFixed(6)}, ${result.coords.lng.toFixed(6)}</p>`
-                : ''
-              }
-              ${result.placeId
-                ? `<p class="text-xs text-gray-500 mt-0.5">Place ID: ${_escHtml(result.placeId)}</p>`
-                : ''
-              }
-
-              <!-- Override de nombre -->
-              <div class="mt-4 space-y-2">
-                <label class="text-xs text-gray-400">Nombre del local (editá si es necesario):</label>
-                <input type="text" id="local-name-override"
-                       value="${_escHtml(Maps.formatName(result.name))}"
-                       class="input" maxlength="100">
-                <label class="text-xs text-gray-400">Dirección (opcional):</label>
-                <input type="text" id="local-address-override"
-                       placeholder="Ej: Av. Corrientes 1234, CABA"
-                       class="input" maxlength="200">
-              </div>
-
-              <button class="btn-primary w-full mt-4" onclick="AddLocal.save()">
-                💾 Guardar local
-              </button>
-            </div>
-          </div>
-        `;
+        sugg.innerHTML = '';
+        _preview = {
+          nombre:        Maps.formatName(result.name) || '',
+          direccion:     result.address || '',
+          maps_url:      result.mapsUrl || rawUrl,
+          maps_place_id: '',
+          foto_url:      '',
+        };
+        this._renderPreview(!result.name); // pedir nombre si no se pudo extraer
       }
     },
 
-    _manualFormHtml(mapsUrl = '') {
-      return `
-        <div class="space-y-3">
-          <input type="text" id="manual-name" placeholder="Nombre del local *" class="input" maxlength="100">
-          <input type="text" id="manual-address" placeholder="Dirección (opcional)" class="input" maxlength="200">
-          <input type="url" id="manual-maps-url" value="${_escHtml(mapsUrl)}"
-                 placeholder="URL de Google Maps" class="input">
+    async _searchText(query) {
+      const sugg = document.getElementById('local-suggestions');
+      try {
+        const places = await Maps.searchByText(query, 5);
+        _results = places;
+        if (!places.length) {
+          sugg.innerHTML = `<p class="text-xs text-gray-500 px-1 mt-2">Sin resultados para "${_esc(query)}"</p>`;
+          return;
+        }
+        sugg.innerHTML = `
+          <div class="space-y-2 mt-2">
+            ${places.map((p, i) => {
+              const photo = p.photos?.[0]?.name;
+              const photoUrl = photo ? Maps.getPhotoUrl(photo, 80) : null;
+              return `
+                <button class="w-full text-left card p-3 flex items-center gap-3
+                               hover:border-[#D2A679] active:scale-[.99] transition-all"
+                        onclick="AddLocal.selectResult(${i})">
+                  ${photoUrl
+                    ? `<img src="${_esc(photoUrl)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                            onerror="this.replaceWith(document.createTextNode('🍔'))">`
+                    : '<div class="w-12 h-12 rounded-lg bg-[#261509] flex items-center justify-center text-xl flex-shrink-0">🍔</div>'
+                  }
+                  <div class="min-w-0">
+                    <p class="font-semibold text-sm truncate">${_esc(p.displayName?.text || '')}</p>
+                    <p class="text-xs text-gray-400 truncate">${_esc(p.formattedAddress || '')}</p>
+                    ${p.rating ? `<p class="text-xs text-[#FFD700] mt-0.5">★ ${p.rating}</p>` : ''}
+                  </div>
+                </button>
+              `;
+            }).join('')}
+          </div>
+        `;
+      } catch (err) {
+        sugg.innerHTML = `<p class="text-xs text-[#E32636] px-1 mt-2">Error al buscar: ${_esc(err.message)}</p>`;
+      }
+    },
+
+    selectResult(index) {
+      const place = _results[index];
+      if (!place) return;
+      document.getElementById('local-suggestions').innerHTML = '';
+      _preview = _placeToData(place);
+      this._renderPreview();
+    },
+
+    // Renderiza la tarjeta de previsualización con los campos editables
+    // shortUrl=true → solo mostrar campo nombre (URL corta, sin datos extra)
+    _renderPreview(shortUrl = false) {
+      const p = _preview;
+      document.getElementById('local-preview').innerHTML = `
+        <div class="card overflow-hidden">
+          ${p.foto_url
+            ? `<img src="${_esc(p.foto_url)}" alt="${_esc(p.nombre)}"
+                    class="w-full h-44 object-cover"
+                    onerror="this.style.display='none'">`
+            : '<div class="w-full h-32 bg-[#261509] flex items-center justify-center text-5xl">🍔</div>'
+          }
+          <div class="p-4 space-y-3">
+            ${shortUrl ? '<p class="text-xs text-[#D2A679]">📎 Link guardado. Completá el nombre:</p>' : ''}
+            <div>
+              <label class="text-xs text-gray-400">Nombre *</label>
+              <input type="text" id="preview-nombre" value="${_esc(p.nombre)}"
+                     placeholder="Nombre del local" class="input mt-1" maxlength="100">
+            </div>
+            ${!shortUrl ? `
+            <div>
+              <label class="text-xs text-gray-400">Dirección</label>
+              <input type="text" id="preview-direccion" value="${_esc(p.direccion)}"
+                     placeholder="Dirección" class="input mt-1" maxlength="200">
+            </div>` : ''}
+            <button class="btn-primary w-full" onclick="AddLocal.savePreview()">
+              💾 Guardar local
+            </button>
+          </div>
+        </div>
+      `;
+    },
+
+    async savePreview() {
+      if (!_preview) return;
+      const nombre    = document.getElementById('preview-nombre')?.value.trim();
+      const direccion = document.getElementById('preview-direccion')?.value.trim() || _preview.direccion || '';
+      if (!nombre) { App.showToast('El nombre es requerido', 'error'); return; }
+      await this._doSave({ ..._preview, nombre, direccion });
+    },
+
+    showManualForm() {
+      _preview = null;
+      _results = [];
+      document.getElementById('local-suggestions').innerHTML = '';
+      document.getElementById('local-preview').innerHTML = `
+        <div class="card p-4 space-y-3">
+          <input type="text" id="manual-nombre" placeholder="Nombre del local *" class="input" maxlength="100">
+          <input type="text" id="manual-direccion" placeholder="Dirección (opcional)" class="input" maxlength="200">
+          <input type="url" id="manual-maps-url" placeholder="URL de Google Maps (opcional)" class="input">
           <button class="btn-primary w-full" onclick="AddLocal.saveManual()">
             💾 Guardar local
           </button>
@@ -577,59 +640,23 @@ const AddLocal = (() => {
       `;
     },
 
-    showManualForm() {
-      _manualMode = true;
-      const container = document.getElementById('parse-result');
-      container.innerHTML = `
-        <div class="card p-4">
-          <h3 class="font-semibold mb-4">Datos manuales</h3>
-          ${this._manualFormHtml()}
-        </div>
-      `;
-    },
-
     async saveManual() {
-      const nombre   = document.getElementById('manual-name')?.value.trim();
-      const direccion = document.getElementById('manual-address')?.value.trim() || '';
-      const mapsUrl  = document.getElementById('manual-maps-url')?.value.trim() || '';
-
-      if (!nombre) {
-        App.showToast('El nombre es requerido', 'error');
-        return;
-      }
-
+      const nombre    = document.getElementById('manual-nombre')?.value.trim();
+      const direccion = document.getElementById('manual-direccion')?.value.trim() || '';
+      const mapsUrl   = document.getElementById('manual-maps-url')?.value.trim() || '';
+      if (!nombre) { App.showToast('El nombre es requerido', 'error'); return; }
       await this._doSave({ nombre, direccion, maps_url: mapsUrl, maps_place_id: '', foto_url: '' });
     },
 
-    async save() {
-      if (!_parsedData) return;
-
-      const nombre   = document.getElementById('local-name-override')?.value.trim();
-      const direccion = document.getElementById('local-address-override')?.value.trim() || '';
-
-      if (!nombre) {
-        App.showToast('El nombre del local es requerido', 'error');
-        return;
-      }
-
-      await this._doSave({
-        nombre,
-        direccion,
-        maps_url:      _parsedData.mapsUrl || _parsedData.originalUrl,
-        maps_place_id: _parsedData.placeId || '',
-        foto_url:      '',
-      });
-    },
-
     async _doSave(localData) {
-      const btn = document.querySelector('#parse-result .btn-primary, #view-add-local .btn-primary:last-child');
-      if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
-
+      const btn = document.querySelector('#local-preview .btn-primary');
+      if (btn) { btn.disabled = true; btn.textContent = 'Guardando…'; }
       try {
         const saved = await AppState.db.addLocal(localData);
         AppState.data.locales.push(saved);
         App.showToast(`✅ "${saved.nombre}" importado`, 'success');
         App.navigate('#home');
+        App.refresh();
       } catch (err) {
         App.showToast('Error al guardar: ' + err.message, 'error');
         if (btn) { btn.disabled = false; btn.textContent = '💾 Guardar local'; }

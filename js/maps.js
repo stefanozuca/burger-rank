@@ -192,36 +192,78 @@ const Maps = (() => {
       };
     },
 
+    // ── New Places API (v1) ──────────────────────────────────────────────────
+
     /**
-     * Intenta obtener la foto del local.
-     * Retorna null si Places API no está disponible (caso normal sin backend).
+     * Obtiene detalles completos de un local via Place Details API (v1).
+     * Retorna el objeto de la API (displayName, formattedAddress, photos, id, etc.)
+     *
+     * Por qué la nueva API (places.googleapis.com) y no la vieja:
+     * - La nueva soporta CORS desde el browser con API Key
+     * - La vieja requería un backend o tenía problemas de CORS
+     *
+     * @param {string} placeId - e.g. "ChIJN1t_tDeuEmsRUsoyG83frY4"
      */
-    async fetchPhoto(placeId) {
-      return _fetchPlacePhoto(placeId);
+    async fetchPlaceDetails(placeId) {
+      if (!CONFIG.API_KEY) throw new Error('API_KEY no configurada');
+      const fields = 'id,displayName,formattedAddress,location,photos,rating,websiteUri';
+      const resp = await fetch(
+        `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?key=${CONFIG.API_KEY}`,
+        {
+          headers: { 'X-Goog-FieldMask': fields },
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Place Details error HTTP ${resp.status}`);
+      }
+      return resp.json();
     },
 
     /**
-     * Genera la URL de embed del mapa para mostrar en una card.
-     * Usa el API Key para Maps Embed API.
+     * Busca locales por texto libre via Text Search API (v1).
+     * Retorna un array de places (hasta maxResultCount).
+     *
+     * @param {string} query - texto libre, ej: "La Birra Bar, Palermo"
+     * @param {number} maxResults - máximo de resultados (default 6)
      */
-    getEmbedUrl(placeId, lat, lng) {
-      if (!CONFIG.API_KEY) return null;
-      if (placeId) {
-        return `https://www.google.com/maps/embed/v1/place?key=${CONFIG.API_KEY}&q=place_id:${placeId}`;
+    async searchByText(query, maxResults = 6) {
+      if (!CONFIG.API_KEY) throw new Error('API_KEY no configurada');
+      const resp = await fetch(
+        'https://places.googleapis.com/v1/places:searchText',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.photos,places.rating',
+          },
+          body: JSON.stringify({
+            textQuery:      query,
+            maxResultCount: maxResults,
+            languageCode:   'es',
+          }),
+          signal: AbortSignal.timeout(8000),
+        }
+      );
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error?.message || `Text Search error HTTP ${resp.status}`);
       }
-      if (lat && lng) {
-        return `https://www.google.com/maps/embed/v1/view?key=${CONFIG.API_KEY}&center=${lat},${lng}&zoom=17`;
-      }
-      return null;
+      const data = await resp.json();
+      return data.places || [];
     },
 
     /**
-     * Construye una URL de Google Maps estática (imagen del mapa).
-     * Útil para mostrar un mini-mapa sin iframe.
+     * Construye la URL de foto usando la nueva Photo API (v1).
+     * La URL redirige a la imagen real (el browser la sigue automáticamente).
+     *
+     * @param {string} photoName - e.g. "places/ChIJ.../photos/AXCi..."
+     * @param {number} maxWidth  - ancho máximo en px (default 400)
      */
-    getStaticMapUrl(lat, lng, zoom = 16) {
-      if (!CONFIG.API_KEY || !lat || !lng) return null;
-      return `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=${zoom}&size=400x200&markers=color:orange%7C${lat},${lng}&key=${CONFIG.API_KEY}`;
+    getPhotoUrl(photoName, maxWidth = 400) {
+      if (!photoName || !CONFIG.API_KEY) return null;
+      return `https://places.googleapis.com/v1/${photoName}/media?maxWidthPx=${maxWidth}&key=${CONFIG.API_KEY}`;
     },
 
     /**
