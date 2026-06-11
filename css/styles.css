@@ -457,3 +457,46 @@ body.offline #main-content   { padding-top: calc(var(--header-height) + env(safe
   #bottom-nav   { max-width: 480px; margin: 0 auto; }
   #app-header   { max-width: 480px; margin: 0 auto; }
 }
+
+/* ── Share Card modal ─────────────────────────────────────────────────────── */
+.sc-modal-sheet {
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
+}
+
+.sc-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.sc-modal-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sc-preview-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.sc-preview-img {
+  max-width: 190px;
+  width: 100%;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+}
+
+.sc-share-action {
+  width: 100%;
+}
+
+.sc-share-hint {
+  font-size: 0.7rem;
+  color: var(--color-muted);
+  text-align: center;
+  margin-top: 10px;
+  line-height: 1.5;
+}

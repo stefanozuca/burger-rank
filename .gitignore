@@ -20,3 +20,6 @@ config.js
 # Node (si se usa en algún momento para tooling)
 node_modules/
 npm-debug.log*
+
+# Brainstorming / superpowers artifacts
+.superpowers/

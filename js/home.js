@@ -16,7 +16,8 @@ const Home = (() => {
   let _currentView = 'locales'; // 'locales' | 'hamburguesas'
   let _activeTagFilter = null;
   let _dragSrcIndex = null;
-  let _localesRanked = [];      // cache del ranking calculado
+  let _localesRanked = [];        // cache del ranking calculado
+  let _hamburguesasRanked = [];   // cache para share card
 
   // ── Cálculo de ranking ─────────────────────────────────────────────────
 
@@ -171,6 +172,21 @@ const Home = (() => {
           <div class="rank-badge ${rankClass} flex-shrink-0">#${topN}</div>
           <div class="flex-1 min-w-0">
             <h3 class="font-bold text-base">${_escHtml(hamburguesa.nombre)}</h3>
+          </div>
+          <button class="btn-ghost flex-shrink-0 p-1.5"
+                  onclick="Home.shareHamburguesa(${index})"
+                  aria-label="Compartir card">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 style="width:18px;height:18px;">
+              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+              <polyline points="16 6 12 2 8 6"/>
+              <line x1="12" y1="2" x2="12" y2="15"/>
+            </svg>
+          </button>
+        </div>
+        <div class="flex items-start gap-3 mt-0">
+          <div class="flex-shrink-0" style="width:36px;"></div><!-- spacer alineado al badge -->
+          <div class="flex-1 min-w-0">
             ${local ? `<p class="text-xs text-gray-400 mt-0.5">📍 ${_escHtml(local.nombre)}</p>` : ''}
             ${hamburguesa.descripcion
               ? `<p class="text-xs text-gray-500 mt-1">${_escHtml(hamburguesa.descripcion)}</p>`
@@ -312,8 +328,9 @@ const Home = (() => {
         return;
       }
 
-      _localesRanked = _calcLocalesRanking(data);
-      const hamburguesasRanked = _calcHamburguesasRanking(data);
+      _localesRanked       = _calcLocalesRanking(data);
+      _hamburguesasRanked  = _calcHamburguesasRanking(data);
+      const hamburguesasRanked = _hamburguesasRanked;
       const allTags = _extractAllTags(data.hamburguesas, data.degustaciones);
 
       // Tags filter bar
@@ -508,6 +525,13 @@ const Home = (() => {
       } else {
         _fallbackCopyLink(shareUrl);
       }
+    },
+
+    /** Abre el Share Card para una hamburguesa del ranking. */
+    shareHamburguesa(index) {
+      const item = _hamburguesasRanked[index];
+      if (!item) return;
+      ShareCard.open(item);
     },
 
     /** Carga el skeleton de carga. */
