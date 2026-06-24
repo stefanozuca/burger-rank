@@ -209,15 +209,20 @@ const App = (() => {
   }
 
   function _updateHeader(user) {
-    const nameEl = document.getElementById('header-user-name');
+    const nameEl   = document.getElementById('header-user-name');
     const avatarEl = document.getElementById('header-avatar');
-    if (nameEl)   nameEl.textContent = user.name.split(' ')[0]; // solo primer nombre
+    const toggleBtn = document.getElementById('theme-toggle-btn');
+
+    if (nameEl) nameEl.textContent = user.name.split(' ')[0];
     if (avatarEl) {
       if (user.picture) {
         avatarEl.innerHTML = `<img src="${user.picture}" alt="${user.name}" class="w-8 h-8 rounded-full">`;
       } else {
         avatarEl.textContent = user.name.charAt(0).toUpperCase();
       }
+    }
+    if (toggleBtn) {
+      toggleBtn.textContent = document.documentElement.getAttribute('data-theme') === 'dark' ? '☾' : '☀︎';
     }
   }
 
@@ -352,6 +357,23 @@ const App = (() => {
       Auth.signOut();
     },
 
+    /** Alterna entre light y dark mode. */
+    toggleTheme() {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      const next   = isDark ? null : 'dark';
+      if (next) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('burgerrank_theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.removeItem('burgerrank_theme');
+      }
+      const btn = document.getElementById('theme-toggle-btn');
+      if (btn) btn.textContent = next ? '☾' : '☀︎';
+      const meta = document.getElementById('theme-color-meta');
+      if (meta) meta.content = next ? '#EE5A30' : '#D2431F';
+    },
+
     /** Getter del usuario actual. */
     get user() { return AppState.user; },
   };
@@ -368,35 +390,44 @@ const Profile = (() => {
       const degCount = AppState.data.degustaciones.length;
       const localCount = new Set(AppState.data.degustaciones.map((d) => d.local_id)).size;
 
+      const topNValues = AppState.data.degustaciones
+        .map((d) => parseInt(d.top_n, 10))
+        .filter((n) => !isNaN(n));
+      const bestRank = topNValues.length ? Math.min(...topNValues) : null;
+
       container.innerHTML = `
         <div class="px-4 pt-4 view-enter">
-          <h2 class="text-xl font-bold mb-6">Mi perfil</h2>
+          <h2 class="mb-6" style="font-family:var(--font-display);font-weight:800;font-size:1.25rem;color:var(--color-text)">Mi perfil</h2>
 
           <!-- Avatar + nombre -->
           <div class="card p-4 flex items-center gap-4 mb-4">
-            <div class="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center
+            <div class="w-14 h-14 rounded-full overflow-hidden flex items-center justify-center
                         text-2xl font-bold flex-shrink-0"
-                 style="background:var(--color-primary)">
+                 style="background:var(--color-primary);color:#fff">
               ${user.picture
                 ? `<img src="${user.picture}" alt="${user.name}" class="w-full h-full object-cover">`
                 : user.name.charAt(0).toUpperCase()
               }
             </div>
-            <div>
-              <p class="font-bold text-lg">${user.name}</p>
-              <p class="text-sm text-gray-400">${user.email}</p>
+            <div class="min-w-0">
+              <p style="font-family:var(--font-display);font-weight:700;font-size:1.05rem;color:var(--color-text)">${user.name}</p>
+              <p class="text-sm truncate" style="color:var(--color-muted)">${user.email}</p>
             </div>
           </div>
 
-          <!-- Stats -->
-          <div class="grid grid-cols-2 gap-3 mb-4">
-            <div class="card p-4 text-center">
-              <p class="text-3xl font-bold text-[#D2A679]">${degCount}</p>
-              <p class="text-xs text-gray-400 mt-1">Degustaciones</p>
+          <!-- Stats 3-col -->
+          <div class="grid grid-cols-3 gap-2 mb-4">
+            <div class="stat-block">
+              <b>${degCount}</b>
+              <span>Degust.</span>
             </div>
-            <div class="card p-4 text-center">
-              <p class="text-3xl font-bold text-[#D2A679]">${localCount}</p>
-              <p class="text-xs text-gray-400 mt-1">Locales visitados</p>
+            <div class="stat-block${bestRank !== null ? ' hot' : ''}">
+              <b>${bestRank !== null ? '#' + bestRank : '—'}</b>
+              <span>Mejor rank</span>
+            </div>
+            <div class="stat-block">
+              <b>${localCount}</b>
+              <span>Locales</span>
             </div>
           </div>
 
@@ -408,13 +439,13 @@ const Profile = (() => {
             <button class="btn-secondary w-full" onclick="Home.shareTop5(); App.navigate('#home')">
               🔗 Compartir mi Top 5
             </button>
-            <button class="btn-ghost w-full mt-4 text-[#E32636]"
+            <button class="btn-ghost w-full mt-4" style="color:var(--color-primary)"
                     onclick="if(confirm('¿Cerrar sesión?')) App.signOut()">
               Cerrar sesión
             </button>
           </div>
 
-          <p class="text-center text-xs text-gray-600 mt-8">
+          <p class="text-center text-xs mt-8" style="color:var(--color-muted)">
             BurgerRank v1.0 · Datos almacenados en Google Sheets
           </p>
         </div>
@@ -466,7 +497,7 @@ const AddLocal = (() => {
       c.innerHTML = `
         <div class="px-4 pt-4 pb-8 view-enter">
           <h2 class="text-xl font-bold mb-1">Importar local</h2>
-          <p class="text-sm text-gray-400 mb-4">
+          <p class="text-sm mb-4" style="color:var(--color-muted)">
             Pegá un link de Google Maps o escribí el nombre del local.
           </p>
           <input id="local-input" type="text" autocomplete="off"
@@ -475,7 +506,7 @@ const AddLocal = (() => {
                  oninput="AddLocal.onInput(this.value)">
           <div id="local-suggestions" class="mt-2"></div>
           <div id="local-preview" class="mt-4"></div>
-          <div class="mt-6 pt-4 border-t border-[#5c3d25]">
+          <div class="mt-6 pt-4" style="border-top:1px solid var(--color-border)">
             <button class="btn-ghost w-full text-sm" onclick="AddLocal.showManualForm()">
               ✏️ Ingresar datos manualmente
             </button>
@@ -498,7 +529,7 @@ const AddLocal = (() => {
         this._handleUrl(text);
       } else if (text.length >= 3) {
         document.getElementById('local-suggestions').innerHTML =
-          '<p class="text-xs text-gray-500 px-1 mt-2">Buscando…</p>';
+          `<p class="text-xs px-1 mt-2" style="color:var(--color-muted)">Buscando…</p>`;
         _debounce = setTimeout(() => this._searchText(text), 450);
       }
     },
@@ -515,7 +546,7 @@ const AddLocal = (() => {
 
       const result = Maps.parse(rawUrl);
       if (!result.isValid) {
-        sugg.innerHTML = '<p class="text-xs text-[#E32636] px-1 mt-2">URL inválida — asegurate que sea de Google Maps</p>';
+        sugg.innerHTML = '<p class="text-xs px-1 mt-2" style="color:var(--color-primary)">URL inválida — asegurate que sea de Google Maps</p>';
         return;
       }
 
@@ -557,7 +588,7 @@ const AddLocal = (() => {
         const places = await Maps.searchByText(query, 5);
         _results = places;
         if (!places.length) {
-          sugg.innerHTML = `<p class="text-xs text-gray-500 px-1 mt-2">Sin resultados para "${_esc(query)}"</p>`;
+          sugg.innerHTML = `<p class="text-xs px-1 mt-2" style="color:var(--color-muted)">Sin resultados para "${_esc(query)}"</p>`;
           return;
         }
         sugg.innerHTML = `
@@ -567,17 +598,17 @@ const AddLocal = (() => {
               const photoUrl = photo ? Maps.getPhotoUrl(photo, 80) : null;
               return `
                 <button class="w-full text-left card p-3 flex items-center gap-3
-                               hover:border-[#D2A679] active:scale-[.99] transition-all"
+                               active:scale-[.99] transition-all"
                         onclick="AddLocal.selectResult(${i})">
                   ${photoUrl
                     ? `<img src="${_esc(photoUrl)}" class="w-12 h-12 rounded-lg object-cover flex-shrink-0"
                             onerror="this.replaceWith(document.createTextNode('🍔'))">`
-                    : '<div class="w-12 h-12 rounded-lg bg-[#261509] flex items-center justify-center text-xl flex-shrink-0">🍔</div>'
+                    : '<div class="w-12 h-12 rounded-lg flex items-center justify-center text-xl flex-shrink-0" style="background:var(--color-surface2)">🍔</div>'
                   }
                   <div class="min-w-0">
-                    <p class="font-semibold text-sm truncate">${_esc(p.displayName?.text || '')}</p>
-                    <p class="text-xs text-gray-400 truncate">${_esc(p.formattedAddress || '')}</p>
-                    ${p.rating ? `<p class="text-xs text-[#FFD700] mt-0.5">★ ${p.rating}</p>` : ''}
+                    <p class="font-semibold text-sm truncate" style="color:var(--color-text)">${_esc(p.displayName?.text || '')}</p>
+                    <p class="text-xs truncate" style="color:var(--color-muted)">${_esc(p.formattedAddress || '')}</p>
+                    ${p.rating ? `<p class="text-xs mt-0.5" style="color:var(--color-amber)">★ ${p.rating}</p>` : ''}
                   </div>
                 </button>
               `;
@@ -585,7 +616,7 @@ const AddLocal = (() => {
           </div>
         `;
       } catch (err) {
-        sugg.innerHTML = `<p class="text-xs text-[#E32636] px-1 mt-2">Error al buscar: ${_esc(err.message)}</p>`;
+        sugg.innerHTML = `<p class="text-xs px-1 mt-2" style="color:var(--color-primary)">Error al buscar: ${_esc(err.message)}</p>`;
       }
     },
 
@@ -607,18 +638,18 @@ const AddLocal = (() => {
             ? `<img src="${_esc(p.foto_url)}" alt="${_esc(p.nombre)}"
                     class="w-full h-44 object-cover"
                     onerror="this.style.display='none'">`
-            : '<div class="w-full h-32 bg-[#261509] flex items-center justify-center text-5xl">🍔</div>'
+            : '<div class="w-full h-32 flex items-center justify-center text-5xl" style="background:var(--color-surface2)">🍔</div>'
           }
           <div class="p-4 space-y-3">
-            ${shortUrl ? '<p class="text-xs text-[#D2A679]">📎 Link guardado. Completá el nombre:</p>' : ''}
+            ${shortUrl ? '<p class="text-xs" style="color:var(--color-golden)">📎 Link guardado. Completá el nombre:</p>' : ''}
             <div>
-              <label class="text-xs text-gray-400">Nombre *</label>
+              <label class="text-xs" style="color:var(--color-muted)">Nombre *</label>
               <input type="text" id="preview-nombre" value="${_esc(p.nombre)}"
                      placeholder="Nombre del local" class="input mt-1" maxlength="100">
             </div>
             ${!shortUrl ? `
             <div>
-              <label class="text-xs text-gray-400">Dirección</label>
+              <label class="text-xs" style="color:var(--color-muted)">Dirección</label>
               <input type="text" id="preview-direccion" value="${_esc(p.direccion)}"
                      placeholder="Dirección" class="input mt-1" maxlength="200">
             </div>` : ''}

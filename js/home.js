@@ -111,7 +111,7 @@ const Home = (() => {
             <div class="flex-1 min-w-0">
               <h3 class="font-bold text-base truncate">${_escHtml(local.nombre)}</h3>
               ${local.direccion
-                ? `<p class="text-xs text-gray-400 mt-0.5 truncate">📍 ${_escHtml(local.direccion)}</p>`
+                ? `<p class="text-xs mt-0.5 truncate" style="color:var(--color-muted)">📍 ${_escHtml(local.direccion)}</p>`
                 : ''
               }
             </div>
@@ -126,10 +126,10 @@ const Home = (() => {
 
           ${bestBurger ? `
             <div class="mt-3 p-2 rounded-lg" style="background:var(--color-surface2)">
-              <p class="text-xs text-gray-400 font-medium uppercase tracking-wide mb-1">Mejor hamburguesa</p>
+              <p class="text-xs font-medium uppercase tracking-wide mb-1" style="color:var(--color-muted)">Mejor hamburguesa</p>
               <p class="text-sm font-semibold">${_escHtml(bestBurger.nombre)}</p>
               ${degustacion.comentario
-                ? `<p class="text-xs text-gray-400 mt-1 line-clamp-2">"${_escHtml(degustacion.comentario)}"</p>`
+                ? `<p class="text-xs mt-1 line-clamp-2" style="color:var(--color-muted)">"${_escHtml(degustacion.comentario)}"</p>`
                 : ''
               }
               ${bestBurger.tags
@@ -146,7 +146,8 @@ const Home = (() => {
           <div class="flex items-center justify-between mt-3">
             ${local.maps_url
               ? `<a href="${local.maps_url}" target="_blank" rel="noopener"
-                    class="text-xs text-[#D2A679] flex items-center gap-1">
+                    class="text-xs flex items-center gap-1"
+                    style="color:var(--color-golden)">
                    📍 Ver en Maps
                  </a>`
               : '<span></span>'
@@ -163,45 +164,54 @@ const Home = (() => {
 
   function _renderHamburguesaCard(item, index) {
     const { hamburguesa, local, topN, degustacion } = item;
-    const rankClass = topN <= 3 ? `rank-${topN}` : '';
     const tags = hamburguesa.tags ? hamburguesa.tags.split(',').filter(Boolean) : [];
+    const medalClass = topN <= 3 ? `medal-${topN}` : '';
+
+    const placeName = local
+      ? `<div class="rc-place">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px;flex-shrink:0">
+             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+           </svg>
+           ${_escHtml(local.nombre)}${local.direccion ? ' · ' + _escHtml(local.direccion) : ''}
+         </div>`
+      : '';
+
+    const tagsHtml = tags.length
+      ? `<div class="flex flex-wrap gap-1 mt-2">${tags.map((t) => `<span class="tag text-xs py-0.5">${_escHtml(t.trim())}</span>`).join('')}</div>`
+      : '';
+
+    const comment = degustacion.comentario
+      ? `<p class="rc-comment"><span class="q">"</span>${_escHtml(degustacion.comentario)}<span class="q">"</span></p>`
+      : '';
 
     return `
-      <div class="card card-interactive mb-3 p-4">
-        <div class="flex items-start gap-3">
-          <div class="rank-badge ${rankClass} flex-shrink-0">#${topN}</div>
-          <div class="flex-1 min-w-0">
-            <h3 class="font-bold text-base">${_escHtml(hamburguesa.nombre)}</h3>
+      <div class="card rc mb-3" style="overflow:hidden;padding:0">
+        <div class="rc-photo">
+          <span class="ph-lbl">foto burger</span>
+          ${topN <= 3 ? `<div class="medal ${medalClass}">${topN}</div>` : ''}
+          <div class="rc-score">
+            <b>#${topN}</b>
+            <span>RANK</span>
           </div>
-          <button class="btn-ghost flex-shrink-0 p-1.5"
-                  onclick="Home.shareHamburguesa(${index})"
-                  aria-label="Compartir card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 style="width:18px;height:18px;">
-              <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-              <polyline points="16 6 12 2 8 6"/>
-              <line x1="12" y1="2" x2="12" y2="15"/>
-            </svg>
-          </button>
         </div>
-        <div class="flex items-start gap-3 mt-0">
-          <div class="flex-shrink-0" style="width:36px;"></div><!-- spacer alineado al badge -->
-          <div class="flex-1 min-w-0">
-            ${local ? `<p class="text-xs text-gray-400 mt-0.5">📍 ${_escHtml(local.nombre)}</p>` : ''}
-            ${hamburguesa.descripcion
-              ? `<p class="text-xs text-gray-500 mt-1">${_escHtml(hamburguesa.descripcion)}</p>`
-              : ''
-            }
-            ${tags.length
-              ? `<div class="flex flex-wrap gap-1 mt-2">
-                  ${tags.map((t) => `<span class="tag text-xs py-0.5">${_escHtml(t.trim())}</span>`).join('')}
-                 </div>`
-              : ''
-            }
-            ${degustacion.comentario
-              ? `<p class="text-xs text-gray-400 mt-2 italic">"${_escHtml(degustacion.comentario)}"</p>`
-              : ''
-            }
+        <div class="rc-body">
+          <div class="rc-title">${_escHtml(hamburguesa.nombre)}</div>
+          ${placeName}
+          ${hamburguesa.descripcion ? `<p style="font-size:12px;color:var(--color-muted);margin-top:4px">${_escHtml(hamburguesa.descripcion)}</p>` : ''}
+          ${tagsHtml}
+          ${comment}
+          <div class="rc-foot">
+            <button class="btn-ghost flex items-center gap-1.5 px-2 py-1 text-xs"
+                    onclick="Home.shareHamburguesa(${index})"
+                    aria-label="Compartir card">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   style="width:14px;height:14px">
+                <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+                <polyline points="16 6 12 2 8 6"/>
+                <line x1="12" y1="2" x2="12" y2="15"/>
+              </svg>
+              Compartir
+            </button>
           </div>
         </div>
       </div>

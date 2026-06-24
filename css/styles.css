@@ -2,25 +2,44 @@
 
 /* ── Variables CSS ────────────────────────────────────────────────────────── */
 :root {
-  /* ── Paleta "Burger Tradicional" ── */
-  --color-golden:  #D2A679;  /* Marrón Dorado (Pan)      */
-  --color-queso:   #FFD700;  /* Amarillo Queso            */
-  --color-tomate:  #E32636;  /* Rojo Tomate               */
-  --color-lechuga: #567D46;  /* Verde Lechuga             */
-  --color-carne:   #4B3621;  /* Carne / Marrón Oscuro     */
+  /* ── Paleta "Burger Asado" — cinco ingredientes ── */
+  --color-tomate:  #D2431F;  /* Char / Asado — rojo cálido */
+  --color-queso:   #ECA52A;  /* Queso Tostado — dorado     */
+  --color-golden:  #CFA06E;  /* Pan — neutro cálido        */
+  --color-lechuga: #6F8A3C;  /* Lechuga — verde oliva      */
+  --color-carne:   #3A2718;  /* Carne — espresso oscuro    */
 
-  /* ── Sistema de colores UI (derivados de la paleta) ── */
-  --color-bg:          #130b04;   /* casi negro cálido       */
-  --color-surface:     #261509;   /* marrón muy oscuro       */
-  --color-surface2:    #361f0f;   /* marrón oscuro           */
-  --color-border:      #5c3d25;   /* marrón medio            */
-  --color-primary:     #E32636;   /* Rojo Tomate — CTAs      */
-  --color-primary-dark:#b51e2b;
-  --color-amber:       #FFD700;   /* Amarillo Queso          */
-  --color-text:        #f5ece3;   /* blanco cálido           */
-  --color-muted:       #b89880;   /* marrón claro            */
+  /* ── Light mode (default) ── */
+  --color-bg:          #F6EEE3;
+  --color-surface:     #FFFCF6;
+  --color-surface2:    #EFE4D4;
+  --color-border:      #E5D8C4;
+  --color-primary:     #D2431F;
+  --color-primary-dark:#B33515;
+  --color-amber:       #E59A22;
+  --color-text:        #2B2018;
+  --color-muted:       #857562;
+
+  /* ── Tipografía ── */
+  --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-text:    'Hanken Grotesk', system-ui, sans-serif;
+  --font-mono:    'Space Mono', ui-monospace, monospace;
+
   --nav-height:     64px;
   --header-height:  56px;
+}
+
+/* ── Dark mode ───────────────────────────────────────────────────────────── */
+[data-theme="dark"] {
+  --color-bg:          #17110B;
+  --color-surface:     #221A12;
+  --color-surface2:    #2C2217;
+  --color-border:      #3A2C1D;
+  --color-primary:     #EE5A30;
+  --color-primary-dark:#C9441D;
+  --color-amber:       #F4B544;
+  --color-text:        #F0E7DA;
+  --color-muted:       #AD9C88;
 }
 
 /* ── Reset & Base ─────────────────────────────────────────────────────────── */
@@ -29,8 +48,9 @@
 body {
   background-color: var(--color-bg);
   color: var(--color-text);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-text);
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
   overscroll-behavior: none;
 }
 
@@ -61,7 +81,7 @@ body {
 .card {
   background-color: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -87,10 +107,14 @@ body {
   font-size: 0.875rem;
 }
 
-/* Medallas con la paleta de la burger */
-.rank-badge.rank-1 { background: var(--color-queso);  color: var(--color-carne); }   /* oro = queso   */
-.rank-badge.rank-2 { background: var(--color-golden); color: var(--color-carne); }   /* plata = pan   */
-.rank-badge.rank-3 { background: var(--color-carne);  color: var(--color-golden); }  /* bronce = carne */
+/* Medallas con la paleta Burger Asado */
+.rank-badge.rank-1 { background: #ECA52A; color: #3A2718; }  /* queso tostado — oro  */
+.rank-badge.rank-2 { background: #CFA06E; color: #3A2718; }  /* pan — plata          */
+.rank-badge.rank-3 { background: #3A2718; color: #CFA06E; }  /* carne — bronce       */
+
+[data-theme="dark"] .rank-badge.rank-1 { background: #F4B544; color: #17110B; }
+[data-theme="dark"] .rank-badge.rank-2 { background: #D2B486; color: #17110B; }
+[data-theme="dark"] .rank-badge.rank-3 { background: #B07C44; color: #17110B; }
 
 /* ── Botones ─────────────────────────────────────────────────────────────── */
 .btn-primary {
@@ -133,7 +157,7 @@ body {
   gap: 8px;
 }
 
-.btn-secondary:hover { background-color: #3a3a3a; }
+.btn-secondary:hover { background-color: var(--color-border); }
 
 .btn-ghost {
   background: none;
@@ -185,7 +209,7 @@ textarea.input { resize: vertical; min-height: 80px; }
 }
 
 .tag.active {
-  background-color: #567D4620;
+  background-color: color-mix(in srgb, var(--color-lechuga) 15%, transparent);
   border-color: var(--color-lechuga);
   color: var(--color-lechuga);
 }
@@ -371,21 +395,22 @@ body.offline #main-content   { padding-top: calc(var(--header-height) + env(safe
 .toggle-group {
   display: inline-flex;
   background: var(--color-surface2);
-  border-radius: 8px;
+  border-radius: 11px;
   padding: 3px;
   gap: 2px;
 }
 
 .toggle-btn {
   padding: 6px 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: none;
   font-size: 0.8rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   background: transparent;
   color: var(--color-muted);
+  font-family: var(--font-text);
 }
 
 .toggle-btn.active {
@@ -432,6 +457,238 @@ body.offline #main-content   { padding-top: calc(var(--header-height) + env(safe
   width: 100%;
   outline: none;
   padding: 8px 0;
+}
+
+/* ── Review card (rc) — nueva estructura ────────────────────────────────── */
+.rc-photo {
+  height: 120px;
+  position: relative;
+  background:
+    repeating-linear-gradient(135deg, var(--color-surface2), var(--color-surface2) 9px, transparent 9px, transparent 18px),
+    var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rc-photo img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rc-photo .ph-lbl {
+  font-size: 9.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  background: var(--color-bg);
+  padding: 3px 8px;
+  border-radius: 6px;
+  opacity: .85;
+  position: relative;
+  z-index: 1;
+}
+
+.medal {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 14px;
+  color: #3a2a1c;
+  box-shadow: 0 2px 8px rgba(0,0,0,.22);
+  z-index: 2;
+}
+
+.medal-1 { background: #ECA52A; }
+.medal-2 { background: #CFA06E; }
+.medal-3 { background: #3A2718; color: #CFA06E; }
+
+[data-theme="dark"] .medal-1 { background: #F4B544; color: #17110B; }
+[data-theme="dark"] .medal-2 { background: #D2B486; color: #17110B; }
+[data-theme="dark"] .medal-3 { background: #B07C44; color: #17110B; }
+
+.rc-score {
+  position: absolute;
+  bottom: -18px;
+  right: 14px;
+  width: 50px;
+  height: 50px;
+  border-radius: 14px;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 14px rgba(0,0,0,.22);
+  z-index: 2;
+}
+
+.rc-score b {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+  color: #fff;
+}
+
+.rc-score span {
+  font-size: 7px;
+  letter-spacing: .08em;
+  opacity: .85;
+  margin-top: 1px;
+  font-weight: 600;
+}
+
+.rc-body {
+  padding: 22px 14px 14px;
+}
+
+.rc-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 17px;
+  color: var(--color-text);
+  line-height: 1.1;
+}
+
+.rc-place {
+  font-size: 12px;
+  color: var(--color-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+}
+
+.rc-place svg { color: var(--color-primary); flex-shrink: 0; }
+
+.rc-comment {
+  font-size: 12.5px;
+  color: var(--color-text);
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+.rc-comment .q { color: var(--color-muted); }
+
+.rc-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--color-border);
+}
+
+/* ── Compact rank row (rrow) ────────────────────────────────────────────── */
+.rrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 11px 13px;
+  margin-bottom: 9px;
+}
+
+.rrow .mn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 13px;
+  color: #3a2a1c;
+}
+
+.rrow .nm { min-width: 0; flex: 1; }
+.rrow .nm .t { font-weight: 600; font-size: 13.5px; color: var(--color-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rrow .nm .p { font-size: 11px; color: var(--color-muted); }
+.rrow .sc { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--color-primary); }
+
+/* ── Theme toggle button ─────────────────────────────────────────────────── */
+.theme-toggle {
+  background: none;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background-color 0.15s;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.theme-toggle:hover { color: var(--color-text); background: var(--color-surface2); }
+
+/* ── Stat blocks (profile) ───────────────────────────────────────────────── */
+.stat-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 12px 8px;
+  text-align: center;
+}
+
+.stat-block b {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 22px;
+  color: var(--color-text);
+  display: block;
+  line-height: 1;
+}
+
+.stat-block.hot b { color: var(--color-primary); }
+
+.stat-block span {
+  font-size: 9.5px;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  display: block;
+  margin-top: 5px;
+}
+
+/* ── Wordmark / brandmark en header ──────────────────────────────────────── */
+.ah-mark {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  background: var(--color-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ah-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--color-text);
 }
 
 /* ── Share page específico ───────────────────────────────────────────────── */

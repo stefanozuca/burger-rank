@@ -7,7 +7,7 @@
   <meta name="description" content="Rankeá hamburguesas con tus amigos">
 
   <!-- PWA meta tags -->
-  <meta name="theme-color" content="#E32636">
+  <meta id="theme-color-meta" name="theme-color" content="#D2431F">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="BurgerRank">
@@ -21,6 +21,23 @@
   <meta property="og:description" content="Rankeá hamburguesas con tus amigos">
   <meta property="og:type" content="website">
 
+  <!-- Google Fonts: Bricolage Grotesque (display) + Hanken Grotesk (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Theme: apply data-theme before first paint to avoid FOUC -->
+  <script>
+    (function () {
+      var saved = localStorage.getItem('burgerrank_theme');
+      if (saved === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        var m = document.getElementById('theme-color-meta');
+        if (m) m.content = '#EE5A30';
+      }
+    })();
+  </script>
+
   <!-- Tailwind CSS CDN (JIT en browser) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -28,13 +45,17 @@
       theme: {
         extend: {
           colors: {
-            primary:    '#E32636',   /* Rojo Tomate  */
-            golden:     '#D2A679',   /* Marrón Dorado (Pan) */
-            queso:      '#FFD700',   /* Amarillo Queso */
-            lechuga:    '#567D46',   /* Verde Lechuga */
-            carne:      '#4B3621',   /* Carne / Marrón Oscuro */
-            surface:    '#261509',
-            background: '#130b04',
+            primary:    'var(--color-primary)',
+            golden:     'var(--color-golden)',
+            queso:      'var(--color-queso)',
+            lechuga:    'var(--color-lechuga)',
+            carne:      'var(--color-carne)',
+            surface:    'var(--color-surface)',
+            surface2:   'var(--color-surface2)',
+            background: 'var(--color-bg)',
+            border:     'var(--color-border)',
+            muted:      'var(--color-muted)',
+            'app-text': 'var(--color-text)',
           },
         },
       },
@@ -45,35 +66,35 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 
-<body class="h-full bg-[#130b04] text-white">
+<body class="h-full" style="background:var(--color-bg);color:var(--color-text)">
 
   <!-- ══════════════════════════════════════════════════════════
        PANTALLAS DE AUTH (solo una visible a la vez)
   ═══════════════════════════════════════════════════════════ -->
 
   <!-- Pantalla: Loading inicial -->
-  <div id="screen-loading" class="fixed inset-0 flex flex-col items-center justify-center bg-[#130b04] z-50">
+  <div id="screen-loading" class="fixed inset-0 flex flex-col items-center justify-center z-50" style="background:var(--color-bg)">
     <div class="text-6xl mb-4">🍔</div>
-    <h1 class="text-2xl font-bold text-white mb-2">BurgerRank</h1>
+    <h1 class="text-2xl font-bold mb-2" style="font-family:var(--font-display);color:var(--color-text)">BurgerRank</h1>
     <div class="spinner mt-6"></div>
     <!-- Mensaje de estado durante la resolución del spreadsheet -->
-    <p id="loading-status" class="text-xs text-gray-500 mt-4 px-8 text-center min-h-4 transition-all"></p>
+    <p id="loading-status" class="text-xs mt-4 px-8 text-center min-h-4 transition-all" style="color:var(--color-muted)"></p>
   </div>
 
   <!-- Pantalla: Login -->
   <div id="screen-login" class="hidden fixed inset-0 flex flex-col items-center justify-center
-                                 bg-[#130b04] px-5 z-50 overflow-y-auto py-8">
+                                 px-5 z-50 overflow-y-auto py-8" style="background:var(--color-bg)">
     <div class="w-full max-w-sm">
 
       <!-- Logo + título -->
       <div class="text-center mb-8">
         <div class="text-7xl mb-3">🍔</div>
-        <h1 class="text-3xl font-bold tracking-tight">BurgerRank</h1>
-        <p class="text-sm text-gray-400 mt-1">Rankeá hamburgueserías con tus amigos</p>
+        <h1 class="text-3xl font-bold tracking-tight" style="font-family:var(--font-display)">BurgerRank</h1>
+        <p class="text-sm mt-1" style="color:var(--color-muted)">Rankeá hamburgueserías con tus amigos</p>
       </div>
 
       <!-- Card principal -->
-      <div class="rounded-2xl border border-[#5c3d25] bg-[#1a0c04] p-6 shadow-xl">
+      <div class="rounded-2xl p-6 shadow-xl" style="border:1px solid var(--color-border);background:var(--color-surface)">
 
         <!-- Tabs Iniciar sesión / Crear cuenta -->
         <div class="toggle-group mb-6" role="tablist">
@@ -91,23 +112,23 @@
 
         <!-- Descripción según tab activo -->
         <div id="auth-desc-signin" class="text-center mb-6">
-          <p class="text-sm text-gray-400">
+          <p class="text-sm" style="color:var(--color-muted)">
             Continuá con tu cuenta de Google para acceder a tu ranking personal.
           </p>
         </div>
         <div id="auth-desc-signup" class="text-center mb-6 hidden">
-          <p class="text-sm text-gray-400">
+          <p class="text-sm" style="color:var(--color-muted)">
             Solo necesitás una cuenta de Google. Tu spreadsheet personal se crea automáticamente la primera vez.
           </p>
           <div class="mt-3 flex flex-col gap-1.5 text-left">
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              <span class="text-[#567D46] font-bold">✓</span> Tus datos se guardan en tu propio Google Drive
+            <div class="flex items-center gap-2 text-xs" style="color:var(--color-muted)">
+              <span class="font-bold" style="color:var(--color-lechuga)">✓</span> Tus datos se guardan en tu propio Google Drive
             </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              <span class="text-[#567D46] font-bold">✓</span> Nadie más puede ver ni editar tu ranking
+            <div class="flex items-center gap-2 text-xs" style="color:var(--color-muted)">
+              <span class="font-bold" style="color:var(--color-lechuga)">✓</span> Nadie más puede ver ni editar tu ranking
             </div>
-            <div class="flex items-center gap-2 text-xs text-gray-500">
-              <span class="text-[#567D46] font-bold">✓</span> Podés compartir tu Top 5 cuando quieras
+            <div class="flex items-center gap-2 text-xs" style="color:var(--color-muted)">
+              <span class="font-bold" style="color:var(--color-lechuga)">✓</span> Podés compartir tu Top 5 cuando quieras
             </div>
           </div>
         </div>
@@ -130,7 +151,7 @@
       </div>
 
       <!-- Nota legal / privacidad -->
-      <p class="text-xs text-gray-600 mt-5 text-center leading-relaxed px-2">
+      <p class="text-xs mt-5 text-center leading-relaxed px-2" style="color:var(--color-muted)">
         Al continuar autorizás a BurgerRank a crear y leer un Google Spreadsheet
         en tu Drive para guardar tu ranking personal.
       </p>
@@ -156,15 +177,19 @@
 
     <!-- Header fijo -->
     <header id="app-header"
-            class="fixed top-0 left-0 right-0 z-40 flex items-end
-                   bg-[#130b04] border-b border-[#5c3d25]">
+            class="fixed top-0 left-0 right-0 z-40 flex items-end"
+            style="background:var(--color-bg);border-bottom:1px solid var(--color-border)">
       <div class="flex items-center justify-between w-full px-4 pb-3"
            style="max-width:480px; margin:0 auto">
         <div class="flex items-center gap-2">
-          <span class="text-xl">🍔</span>
-          <span class="font-bold text-lg">BurgerRank</span>
+          <div class="ah-mark">🍔</div>
+          <span class="ah-wordmark">BurgerRank</span>
         </div>
         <div class="flex items-center gap-2">
+          <!-- Theme toggle -->
+          <button onclick="App.toggleTheme()" aria-label="Cambiar tema" class="theme-toggle" id="theme-toggle-btn">
+            ☀︎
+          </button>
           <!-- Refresh button -->
           <button onclick="App.refresh()" aria-label="Actualizar"
                   class="btn-ghost p-2">
@@ -177,8 +202,9 @@
           <!-- Avatar del usuario -->
           <button onclick="App.navigate('#profile')" aria-label="Perfil"
                   id="header-avatar"
-                  class="w-8 h-8 rounded-full bg-[#E32636] flex items-center justify-center
-                         text-sm font-bold overflow-hidden">
+                  class="w-8 h-8 rounded-full flex items-center justify-center
+                         text-sm font-bold overflow-hidden"
+                  style="background:var(--color-primary);color:#fff">
           </button>
         </div>
       </div>
@@ -216,8 +242,8 @@
 
     <!-- Bottom Navigation -->
     <nav id="bottom-nav"
-         class="fixed bottom-0 left-0 right-0 z-40
-                bg-[#130b04] border-t border-[#5c3d25] flex items-stretch">
+         class="fixed bottom-0 left-0 right-0 z-40 flex items-stretch"
+         style="background:var(--color-bg);border-top:1px solid var(--color-border)">
       <div class="flex w-full" style="max-width:480px; margin:0 auto">
 
         <!-- Home -->

@@ -80,7 +80,7 @@ const Degustacion = (() => {
       <div class="view-enter">
         ${_renderStepIndicator()}
         <h3 class="text-lg font-bold mb-1">¿En qué local?</h3>
-        <p class="text-sm text-gray-400 mb-4">Elegí la hamburguesería que visitaste.</p>
+        <p class="text-sm mb-4" style="color:var(--color-muted)">Elegí la hamburguesería que visitaste.</p>
 
         <!-- Búsqueda -->
         <div class="relative mb-4">
@@ -106,7 +106,7 @@ const Degustacion = (() => {
           }
         </div>
 
-        <div class="mt-4 pt-4 border-t border-[#5c3d25]">
+        <div class="mt-4 pt-4 border-t" style="border-color:var(--color-border)">
           <button class="btn-secondary w-full" onclick="App.navigate('#add-local')">
             + Importar nuevo local
           </button>
@@ -130,7 +130,7 @@ const Degustacion = (() => {
         <div class="flex-1 min-w-0">
           <p class="font-semibold text-sm truncate">${_escHtml(local.nombre)}</p>
           ${local.direccion
-            ? `<p class="text-xs text-gray-400 truncate">${_escHtml(local.direccion)}</p>`
+            ? `<p class="text-xs truncate" style="color:var(--color-muted)">${_escHtml(local.direccion)}</p>`
             : ''
           }
         </div>
@@ -156,18 +156,18 @@ const Degustacion = (() => {
           </button>
           <div>
             <h3 class="text-lg font-bold">¿Qué hamburguesa?</h3>
-            <p class="text-xs text-gray-400">${_escHtml(_state.local.nombre)}</p>
+            <p class="text-xs" style="color:var(--color-muted)">${_escHtml(_state.local.nombre)}</p>
           </div>
         </div>
 
         ${hamburguesas.length > 0 ? `
-          <p class="text-sm text-gray-400 mb-3">Hamburguesas conocidas de este local:</p>
+          <p class="text-sm mb-3" style="color:var(--color-muted)">Hamburguesas conocidas de este local:</p>
           <div class="space-y-2 mb-4">
             ${hamburguesas.map((h) => `
               <button class="card card-interactive w-full text-left p-3"
                       onclick="Degustacion.selectHamburguesa('${h.id}')">
                 <p class="font-semibold text-sm">${_escHtml(h.nombre)}</p>
-                ${h.descripcion ? `<p class="text-xs text-gray-400 mt-0.5">${_escHtml(h.descripcion)}</p>` : ''}
+                ${h.descripcion ? `<p class="text-xs mt-0.5" style="color:var(--color-muted)">${_escHtml(h.descripcion)}</p>` : ''}
                 ${h.tags ? `
                   <div class="flex flex-wrap gap-1 mt-1">
                     ${h.tags.split(',').filter(Boolean).map((t) =>
@@ -178,10 +178,10 @@ const Degustacion = (() => {
               </button>
             `).join('')}
           </div>
-          <div class="border-t border-[#5c3d25] pt-4">
-            <p class="text-sm text-gray-400 mb-3">¿No está en la lista? Agregala:</p>
+          <div class="border-t" style="border-color:var(--color-border) pt-4">
+            <p class="text-sm mb-3" style="color:var(--color-muted)">¿No está en la lista? Agregala:</p>
         ` : `
-          <p class="text-sm text-gray-400 mb-3">
+          <p class="text-sm mb-3" style="color:var(--color-muted)">
             Todavía no hay hamburguesas cargadas para este local. Agregá la primera:
           </p>
         `}
@@ -193,7 +193,7 @@ const Degustacion = (() => {
           <input type="text" id="new-burger-desc" placeholder="Descripción (opcional)"
                  class="input" maxlength="200">
           <div>
-            <p class="text-xs text-gray-400 mb-2">Tags:</p>
+            <p class="text-xs mb-2" style="color:var(--color-muted)">Tags:</p>
             <div class="flex flex-wrap gap-2" id="tag-selector">
               ${AVAILABLE_TAGS.map((t) => `
                 <button class="tag" data-tag="${_escHtml(t)}"
@@ -228,13 +228,13 @@ const Degustacion = (() => {
           </button>
           <div>
             <h3 class="text-lg font-bold">Rankeá la experiencia</h3>
-            <p class="text-xs text-gray-400">${_escHtml(burguerName)} — ${_escHtml(_state.local.nombre)}</p>
+            <p class="text-xs" style="color:var(--color-muted)">${_escHtml(burguerName)} — ${_escHtml(_state.local.nombre)}</p>
           </div>
         </div>
 
         <!-- Top N input -->
         <div class="text-center my-6">
-          <label class="block text-sm text-gray-400 mb-2">
+          <label class="block text-sm mb-2" style="color:var(--color-muted)">
             ¿En qué posición de tu ranking personal va?
           </label>
           <input type="number" id="topn-input" min="1" max="999"
@@ -242,8 +242,8 @@ const Degustacion = (() => {
                  class="topn-input"
                  value="${_state.topN || ''}"
                  oninput="Degustacion.onTopNChange(this.value)">
-          <p id="topn-warning" class="text-xs text-[#FFD700] mt-2 min-h-4"></p>
-          <p class="text-xs text-gray-500 mt-1">
+          <p id="topn-warning" class="text-xs [#ECA52A] mt-2 min-h-4"></p>
+          <p class="text-xs mt-1" style="color:var(--color-muted)">
             1 = la mejor burger de tu vida 🏆
           </p>
         </div>
@@ -270,7 +270,7 @@ const Degustacion = (() => {
           <textarea id="comentario-input" placeholder="¿Qué te pareció? Patty, pan, cocción, precio..."
                     class="input" maxlength="500" rows="3"
                     oninput="Degustacion.onComentarioChange(this.value)">${_escHtml(_state.comentario)}</textarea>
-          <p class="text-right text-xs text-gray-500 mt-1">
+          <p class="text-right text-xs mt-1" style="color:var(--color-muted)">
             <span id="char-count">${_state.comentario.length}</span>/500
           </p>
         </div>
@@ -345,7 +345,7 @@ const Degustacion = (() => {
 
       container.innerHTML = locales.length
         ? locales.map((l) => _renderLocalOption(l)).join('')
-        : `<p class="text-center text-gray-500 py-8">Sin resultados para "${_escHtml(query)}"</p>`;
+        : `<p class="text-center py-8" style="color:var(--color-muted)">Sin resultados para "${_escHtml(query)}"</p>`;
     },
 
     /** Selecciona un local y avanza al step 2. */
@@ -505,7 +505,7 @@ const Degustacion = (() => {
       modal.innerHTML = `
         <div class="modal-sheet">
           <h3 class="text-lg font-bold mb-2">Top #${topN} ya está ocupado</h3>
-          <p class="text-sm text-gray-400 mb-6">
+          <p class="text-sm mb-6" style="color:var(--color-muted)">
             Ya tenés una hamburguesa en el Top #${topN}. ¿Qué querés hacer?
           </p>
           <div class="space-y-2">

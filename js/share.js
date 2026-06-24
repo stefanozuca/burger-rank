@@ -79,7 +79,7 @@ const ShareView = (() => {
       </div>
 
       <!-- Lista de top 5 -->
-      <div class="bg-[#261509] mx-4 -mt-4 rounded-2xl overflow-hidden shadow-xl border border-[#5c3d25]">
+      <div class="mx-4 -mt-4 rounded-2xl overflow-hidden shadow-xl" style="background:var(--color-surface2);border:1px solid var(--color-border)">
         ${items.map((item, i) => `
           <div class="share-rank-item">
             <div class="text-2xl w-10 text-center flex-shrink-0">
