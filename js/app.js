@@ -152,7 +152,8 @@ const App = (() => {
         _showScreen('app');
 
         await _loadData();
-        App.navigate(location.hash || '#home');
+        location.hash = location.hash || '#home';
+        _route(); // siempre renderiza después del login (hashchange no dispara si el hash ya era el mismo)
       },
 
       onLoginRestricted: (user) => {
